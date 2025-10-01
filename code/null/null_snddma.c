@@ -23,12 +23,8 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // snddma_null.c
 // all other sound mixing is portable
 
-#include "../client/client.h"
-
-qboolean SNDDMAHD_DevList(void)
-{
-	return qfalse;
-}
+#include "../qcommon/q_shared.h"
+#include "../qcommon/qcommon.h"
 
 qboolean SNDDMA_Init(void)
 {
@@ -52,7 +48,30 @@ void SNDDMA_Submit(void)
 {
 }
 
-// bk001119 - added boolean flag, match client/snd_public.h
+#ifdef USE_VOIP
+void SNDDMA_StartCapture(void)
+{
+}
+
+int SNDDMA_AvailableCaptureSamples(void)
+{
+	return 0;
+}
+
+void SNDDMA_Capture(int samples, byte *data)
+{
+}
+
+void SNDDMA_StopCapture(void)
+{
+}
+
+void SNDDMA_MasterGain( float val )
+{
+}
+#endif
+
+
 sfxHandle_t S_RegisterSound( const char *name, qboolean compressed ) 
 {
 	return 0;

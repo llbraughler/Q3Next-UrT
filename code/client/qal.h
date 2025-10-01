@@ -28,17 +28,18 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include "../qcommon/q_shared.h"
 #include "../qcommon/qcommon.h"
 
-#if USE_OPENAL_DLOPEN
+#ifdef USE_OPENAL_DLOPEN
 #define AL_NO_PROTOTYPES
 #define ALC_NO_PROTOTYPES
 #endif
 
-#if USE_LOCAL_HEADERS
-#include "../AL/al.h"
-#include "../AL/alc.h"
+#ifdef USE_INTERNAL_OPENAL_HEADERS
+#include "AL/al.h"
+#include "AL/alc.h"
 #else
-#ifdef _MSC_VER
+#if defined(_MSC_VER) || defined(__APPLE__)
   // MSVC users must install the OpenAL SDK which doesn't use the AL/*.h scheme.
+  // OSX framework also needs this
   #include <al.h>
   #include <alc.h>
 #else
@@ -47,7 +48,14 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #endif
 #endif
 
-#if USE_OPENAL_DLOPEN
+/* Hack to enable compiling both on OpenAL SDK and OpenAL-soft. */
+#ifndef ALC_ENUMERATE_ALL_EXT
+#  define ALC_ENUMERATE_ALL_EXT 1
+#  define ALC_DEFAULT_ALL_DEVICES_SPECIFIER        0x1012
+#  define ALC_ALL_DEVICES_SPECIFIER                0x1013
+#endif
+
+#ifdef USE_OPENAL_DLOPEN
 extern LPALENABLE qalEnable;
 extern LPALDISABLE qalDisable;
 extern LPALISENABLED qalIsEnabled;
@@ -118,7 +126,6 @@ extern LPALGETBUFFERI qalGetBufferi;
 extern LPALGETBUFFER3I qalGetBuffer3i;
 extern LPALGETBUFFERIV qalGetBufferiv;
 extern LPALDOPPLERFACTOR qalDopplerFactor;
-extern LPALDOPPLERVELOCITY qalDopplerVelocity;
 extern LPALSPEEDOFSOUND qalSpeedOfSound;
 extern LPALDISTANCEMODEL qalDistanceModel;
 
@@ -213,7 +220,6 @@ extern LPALCCAPTURESAMPLES qalcCaptureSamples;
 #define qalGetBuffer3i alGetBuffer3i
 #define qalGetBufferiv alGetBufferiv
 #define qalDopplerFactor alDopplerFactor
-#define qalDopplerVelocity alDopplerVelocity
 #define qalSpeedOfSound alSpeedOfSound
 #define qalDistanceModel alDistanceModel
 

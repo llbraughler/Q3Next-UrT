@@ -103,7 +103,7 @@ SV_CreateworldSector
 Builds a uniformly subdivided tree for the given world size
 ===============
 */
-worldSector_t *SV_CreateworldSector( int depth, vec3_t mins, vec3_t maxs ) {
+static worldSector_t *SV_CreateworldSector( int depth, vec3_t mins, vec3_t maxs ) {
 	worldSector_t	*anode;
 	vec3_t		size;
 	vec3_t		mins1, maxs1, mins2, maxs2;
@@ -257,7 +257,6 @@ void SV_LinkEntity( sharedEntity_t *gEnt ) {
 	if ( gEnt->r.bmodel && (angles[0] || angles[1] || angles[2]) ) {
 		// expand for rotation
 		float		max;
-		int			i;
 
 		max = RadiusFromBounds( gEnt->r.mins, gEnt->r.maxs );
 		for (i=0 ; i<3 ; i++) {
@@ -379,9 +378,8 @@ SV_AreaEntities_r
 
 ====================
 */
-void SV_AreaEntities_r( worldSector_t *node, areaParms_t *ap ) {
-
-	svEntity_t	   *check, *next;
+static void SV_AreaEntities_r( worldSector_t *node, areaParms_t *ap ) {
+	svEntity_t	*check, *next;
 	sharedEntity_t *gcheck;
 
 	for ( check = node->entities  ; check ; check = next ) {
@@ -505,7 +503,7 @@ SV_ClipMoveToEntities
 
 ====================
 */
-void SV_ClipMoveToEntities( moveclip_t *clip ) {
+static void SV_ClipMoveToEntities( moveclip_t *clip ) {
 	int			i, num;
 	int			touchlist[MAX_GENTITIES];
 	sharedEntity_t *touch;
@@ -653,13 +651,12 @@ SV_PointContents
 =============
 */
 int SV_PointContents( const vec3_t p, int passEntityNum ) {
-
-	int			   touch[MAX_GENTITIES];
+	int			touch[MAX_GENTITIES];
 	sharedEntity_t *hit;
-	int			   i, num;
-	int			   contents, c2;
-	clipHandle_t   clipHandle;
-	float	 	   *angles;
+	int			i, num;
+	int			contents, c2;
+	clipHandle_t	clipHandle;
+	float		*angles;
 
 	// get base contents from world
 	contents = CM_PointContents( p, 0 );

@@ -27,14 +27,6 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 botlib_export_t	*botlib_export;
 
-void SV_GameError( const char *string ) {
-	Com_Error( ERR_DROP, "%s", string );
-}
-
-void SV_GamePrint( const char *string ) {
-	Com_Printf( "%s", string );
-}
-
 // these functions must be used instead of pointer arithmetic, because
 // the game allocates gentities with private information after the server shared part
 int	SV_NumForGentity( sharedEntity_t *ent ) {
@@ -108,21 +100,6 @@ void SV_GameDropClient( int clientNum, const char *reason ) {
 	SV_DropClient( svs.clients + clientNum, reason );	
 }
 
-#ifdef USE_AUTH
-/*
-===============
-SV_Auth_GameDropClient
-
-Disconnects the client with a public reason and private message
-===============
-*/
-void SV_Auth_GameDropClient( int clientNum, const char *reason, const char *message ) {
-	if ( clientNum < 0 || clientNum >= sv_maxclients->integer ) {
-		return;
-	}
-	SV_Auth_DropClient( svs.clients + clientNum, reason, message );	
-}
-#endif
 
 /*
 =================
@@ -234,7 +211,7 @@ void SV_AdjustAreaPortalState( sharedEntity_t *ent, qboolean open ) {
 
 /*
 ==================
-SV_GameAreaEntities
+SV_EntityContact
 ==================
 */
 qboolean	SV_EntityContact( vec3_t mins, vec3_t maxs, const sharedEntity_t *gEnt, int capsule ) {
@@ -300,14 +277,9 @@ void SV_GetUsercmd( int clientNum, usercmd_t *cmd ) {
 //==============================================
 
 static int	FloatAsInt( float f ) {
-	union
-	{
-	    int i;
-	    float f;
-	} temp;
-	
-	temp.f = f;
-	return temp.i;
+	floatint_t fi;
+	fi.f = f;
+	return fi.i;
 }
 
 /*
@@ -334,7 +306,7 @@ intptr_t SV_GameSystemCalls( intptr_t *args ) {
 		Cvar_Update( VMA(1) );
 		return 0;
 	case G_CVAR_SET:
-		Cvar_Set( (const char *)VMA(1), (const char *)VMA(2) );
+		Cvar_SetSafe( (const char *)VMA(1), (const char *)VMA(2) );
 		return 0;
 	case G_CVAR_VARIABLE_INTEGER_VALUE:
 		return Cvar_VariableIntegerValue( (const char *)VMA(1) );
@@ -353,7 +325,7 @@ intptr_t SV_GameSystemCalls( intptr_t *args ) {
 	case G_FS_FOPEN_FILE:
 		return FS_FOpenFileByMode( VMA(1), VMA(2), args[3] );
 	case G_FS_READ:
-		FS_Read2( VMA(1), args[2], args[3] );
+		FS_Read( VMA(1), args[2], args[3] );
 		return 0;
 	case G_FS_WRITE:
 		FS_Write( VMA(1), args[2], args[3] );
@@ -372,13 +344,6 @@ intptr_t SV_GameSystemCalls( intptr_t *args ) {
 	case G_DROP_CLIENT:
 		SV_GameDropClient( args[1], VMA(2) );
 		return 0;
-
-#ifdef USE_AUTH
-	case G_AUTH_DROP_CLIENT:
-		SV_Auth_GameDropClient( args[1], VMA(2), VMA(3) );
-		return 0;
-#endif
-		
 	case G_SEND_SERVER_COMMAND:
 		SV_GameSendServerCommand( args[1], VMA(2) );
 		return 0;
@@ -461,7 +426,7 @@ intptr_t SV_GameSystemCalls( intptr_t *args ) {
 	case G_REAL_TIME:
 		return Com_RealTime( VMA(1) );
 	case G_SNAPVECTOR:
-		Sys_SnapVector( VMA(1) );
+		Q_SnapVector(VMA(1));
 		return 0;
 
 		//====================================
@@ -500,7 +465,13 @@ intptr_t SV_GameSystemCalls( intptr_t *args ) {
 	case BOTLIB_GET_CONSOLE_MESSAGE:
 		return SV_BotGetConsoleMessage( args[1], VMA(2), args[3] );
 	case BOTLIB_USER_COMMAND:
-		SV_ClientThink( &svs.clients[args[1]], VMA(2) );
+		{
+			int clientNum = args[1];
+
+			if ( clientNum >= 0 && clientNum < sv_maxclients->integer ) {
+				SV_ClientThink( &svs.clients[clientNum], VMA(2) );
+			}
+		}
 		return 0;
 
 	case BOTLIB_AAS_BBOX_AREAS:
@@ -569,7 +540,7 @@ intptr_t SV_GameSystemCalls( intptr_t *args ) {
 
 	case BOTLIB_EA_ACTION:
 		botlib_export->ea.EA_Action( args[1], args[2] );
-		break;
+		return 0;
 	case BOTLIB_EA_GESTURE:
 		botlib_export->ea.EA_Gesture( args[1] );
 		return 0;
@@ -829,27 +800,6 @@ intptr_t SV_GameSystemCalls( intptr_t *args ) {
 	case BOTLIB_AI_GENETIC_PARENTS_AND_CHILD_SELECTION:
 		return botlib_export->ai.GeneticParentsAndChildSelection(args[1], VMA(2), VMA(3), VMA(4), VMA(5));
 
-	//@Barbatos
-	#ifdef USE_AUTH
-	case G_NET_STRINGTOADR:
-		return NET_StringToAdr( VMA(1), VMA(2));
-		
-	case G_NET_SENDPACKET:
-		{
-			netadr_t addr;
-			const char * destination = VMA(4);     
-			
-			NET_StringToAdr( destination, &addr );                                                                                                                                                                                                                                   
-			NET_SendPacket( args[1], args[2], VMA(3), addr ); 
-		}
-		return 0;
-	
-	//case G_SYS_STARTPROCESS:
-	//	Sys_StartProcess( VMA(1), VMA(2) );
-	//	return 0;
-		
-	#endif
-	
 	case TRAP_MEMSET:
 		Com_Memset( VMA(1), args[2], args[3] );
 		return 0;
@@ -892,12 +842,11 @@ intptr_t SV_GameSystemCalls( intptr_t *args ) {
 	case TRAP_CEIL:
 		return FloatAsInt( ceil( VMF(1) ) );
 
+
 	default:
 		Com_Error( ERR_DROP, "Bad game system trap: %ld", (long int) args[0] );
-		break;
 	}
-
-	return -1;
+	return 0;
 }
 
 /*
@@ -958,7 +907,7 @@ void SV_RestartGameProgs( void ) {
 	VM_Call( gvm, GAME_SHUTDOWN, qtrue );
 
 	// do a restart instead of a free
-	gvm = VM_Restart( gvm );
+	gvm = VM_Restart(gvm, qtrue);
 	if ( !gvm ) {
 		Com_Error( ERR_FATAL, "VM_Restart on game failed" );
 	}
@@ -978,7 +927,6 @@ void SV_InitGameProgs( void ) {
 	cvar_t	*var;
 	//FIXME these are temp while I make bots run in vm
 	extern int	bot_enable;
-	int i;
 
 	var = Cvar_Get( "bot_enable", "1", CVAR_LATCH );
 	if ( var ) {
@@ -986,16 +934,6 @@ void SV_InitGameProgs( void ) {
 	}
 	else {
 		bot_enable = 0;
-	}
-
-	// Barbatos - force a DNS lookup for the master servers
-	// This way server admins don't have to restart their
-	// servers when a master server IP changes.
-	for ( i = 0 ; i < MAX_MASTER_SERVERS ; i++ ) {
-		if ( !sv_master[i]->string[0] ) {
-			continue;
-		}
-		sv_master[i]->modified = qtrue;
 	}
 
 	// load the dll or bytecode

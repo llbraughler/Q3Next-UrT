@@ -24,11 +24,14 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define __Q_PLATFORM_H
 
 // this is for determining if we have an asm version of a C function
+#define idx64 0
+
 #ifdef Q3_VM
 
 #define id386 0
 #define idppc 0
 #define idppc_altivec 0
+#define idsparc 0
 
 #else
 
@@ -43,7 +46,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define idppc 1
 #if defined(__VEC__)
 #define idppc_altivec 1
-#ifdef MACOS_X  // Apple's GCC does this differently than the FSF.
+#ifdef __APPLE__  // Apple's GCC does this differently than the FSF.
 #define VECCONST_UINT8(a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p) \
 	(vector unsigned char) (a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p)
 #else
@@ -58,24 +61,62 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define idppc_altivec 0
 #endif
 
+#if defined(__sparc__) && !defined(C_ONLY)
+#define idsparc 1
+#else
+#define idsparc 0
 #endif
 
-#ifndef __ASM_I386__ // don't include the C bits if included from qasm.h
+#endif
 
 // for windows fastcall option
 #define QDECL
+#define QCALL
 
-//================================================================= WIN32 ===
+//================================================================= WIN64/32 ===
 
-#ifdef _WIN32
+#if defined(_WIN64) || defined(__WIN64__)
 
 #undef QDECL
 #define QDECL __cdecl
 
+#undef QCALL
+#define QCALL __stdcall
+
 #if defined( _MSC_VER )
-#define OS_STRING "win"
+#define OS_STRING "win_msvc64"
+#elif defined __MINGW64__
+#define OS_STRING "win_mingw64"
+#endif
+
+#define ID_INLINE __inline
+#define PATH_SEP '\\'
+
+#if defined(__x86_64__) || defined(_M_X64)
+#undef idx64
+#define idx64 1
+#define ARCH_STRING "x86_64"
+#define HAVE_VM_COMPILED
+#elif defined(__aarch64__) || defined(__ARM64__) || defined (_M_ARM64)
+#define ARCH_STRING "arm64"
+#endif
+
+#define Q3_LITTLE_ENDIAN
+
+#define DLL_EXT ".dll"
+
+#elif defined(_WIN32) || defined(__WIN32__)
+
+#undef QDECL
+#define QDECL __cdecl
+
+#undef QCALL
+#define QCALL __stdcall
+
+#if defined( _MSC_VER )
+#define OS_STRING "win_msvc"
 #elif defined __MINGW32__
-#define OS_STRING "win"
+#define OS_STRING "win_mingw"
 #endif
 
 #define ID_INLINE __inline
@@ -83,8 +124,9 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #if defined( _M_IX86 ) || defined( __i386__ )
 #define ARCH_STRING "x86"
-#elif defined _M_ALPHA
-#define ARCH_STRING "AXP"
+#define HAVE_VM_COMPILED
+#elif defined(__arm__) || defined(_M_ARM)
+#define ARCH_STRING "arm"
 #endif
 
 #define Q3_LITTLE_ENDIAN
@@ -93,14 +135,10 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #endif
 
-//============================================================== MAC OS X ===
 
-#if defined(MACOS_X) || defined(__APPLE_CC__)
+//================================================================ MAC OS ===
 
-// make sure this is defined, just for sanity's sake...
-#ifndef MACOS_X
-#define MACOS_X
-#endif
+#if defined(__APPLE__) || defined(__APPLE_CC__)
 
 #define OS_STRING "macosx"
 #define ID_INLINE inline
@@ -109,8 +147,19 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #ifdef __ppc__
 #define ARCH_STRING "ppc"
 #define Q3_BIG_ENDIAN
+#define HAVE_VM_COMPILED
+#elif defined __i386__
+#define ARCH_STRING "x86"
+#define Q3_LITTLE_ENDIAN
+#define HAVE_VM_COMPILED
 #elif defined __x86_64__
+#undef idx64
+#define idx64 1
 #define ARCH_STRING "x86_64"
+#define Q3_LITTLE_ENDIAN
+#define HAVE_VM_COMPILED
+#elif defined __aarch64__
+#define ARCH_STRING "arm64"
 #define Q3_LITTLE_ENDIAN
 #endif
 
@@ -120,42 +169,46 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 //================================================================= LINUX ===
 
-#ifdef __linux__
+#if defined(__linux__) || defined(__FreeBSD_kernel__) || defined(__GNU__)
 
 #include <endian.h>
 
+#if defined(__linux__)
 #define OS_STRING "linux"
+#elif defined(__FreeBSD_kernel__)
+#define OS_STRING "kFreeBSD"
+#else
+#define OS_STRING "GNU"
+#endif
+
 #define ID_INLINE inline
+
 #define PATH_SEP '/'
 
-#if defined __i386__
-#define ARCH_STRING "i386"
-#elif defined __x86_64__
-#define ARCH_STRING "x86_64"
-#elif defined __powerpc64__
-#define ARCH_STRING "ppc64"
-#elif defined __powerpc__
-#define ARCH_STRING "ppc"
-#elif defined __s390__
-#define ARCH_STRING "s390"
-#elif defined __s390x__
-#define ARCH_STRING "s390x"
-#elif defined __ia64__
-#define ARCH_STRING "ia64"
-#elif defined __alpha__
-#define ARCH_STRING "alpha"
-#elif defined __sparc__
-#define ARCH_STRING "sparc"
-#elif defined __arm__
-#define ARCH_STRING "arm"
-#elif defined __cris__
-#define ARCH_STRING "cris"
-#elif defined __hppa__
-#define ARCH_STRING "hppa"
-#elif defined __mips__
-#define ARCH_STRING "mips"
-#elif defined __sh__
-#define ARCH_STRING "sh"
+#if defined(__x86_64__) || defined(__amd64__)
+# define ARCH_STRING "x86_64"
+# define HAVE_VM_COMPILED
+#elif defined(__i386__)
+# define ARCH_STRING "x86"
+# define HAVE_VM_COMPILED
+#elif defined(__aarch64__)
+# define ARCH_STRING "arm64"
+#elif defined(__arm__)
+# define ARCH_STRING "arm"
+# define HAVE_VM_COMPILED
+#elif defined(__powerpc64__) || defined(__ppc64__)
+# define ARCH_STRING "ppc64"
+# define HAVE_VM_COMPILED
+#elif defined(__powerpc__) || defined(__ppc__)
+# define ARCH_STRING "ppc"
+# define HAVE_VM_COMPILED
+#elif defined(__alpha__)
+# define ARCH_STRING "alpha"
+#endif
+
+#if defined __x86_64__
+#undef idx64
+#define idx64 1
 #endif
 
 #if __FLOAT_WORD_ORDER == __BIG_ENDIAN
@@ -175,6 +228,10 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #include <sys/types.h>
 #include <machine/endian.h>
 
+#ifndef __BSD__
+  #define __BSD__
+#endif
+
 #if defined(__FreeBSD__)
 #define OS_STRING "freebsd"
 #elif defined(__OpenBSD__)
@@ -187,9 +244,13 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define PATH_SEP '/'
 
 #ifdef __i386__
-#define ARCH_STRING "i386"
+#define ARCH_STRING "x86"
+#define HAVE_VM_COMPILED
 #elif defined __amd64__
-#define ARCH_STRING "amd64"
+#undef idx64
+#define idx64 1
+#define ARCH_STRING "x86_64"
+#define HAVE_VM_COMPILED
 #elif defined __axp__
 #define ARCH_STRING "alpha"
 #endif
@@ -216,9 +277,11 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 #define PATH_SEP '/'
 
 #ifdef __i386__
-#define ARCH_STRING "i386"
+#define ARCH_STRING "x86"
+#define HAVE_VM_COMPILED
 #elif defined __sparc
 #define ARCH_STRING "sparc"
+#define HAVE_VM_COMPILED
 #endif
 
 #if defined( _BIG_ENDIAN )
@@ -247,6 +310,22 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #endif
 
+//============================================================ EMSCRIPTEN ===
+
+#ifdef __EMSCRIPTEN__
+
+#define OS_STRING "emscripten"
+#define ID_INLINE inline
+#define PATH_SEP '/'
+
+#define ARCH_STRING "wasm32"
+
+#define Q3_LITTLE_ENDIAN
+
+#define DLL_EXT ".wasm"
+
+#endif
+
 //================================================================== Q3VM ===
 
 #ifdef Q3_VM
@@ -263,13 +342,16 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 //===========================================================================
 
-//catch missing defines in above blocks
-#if !defined( OS_STRING )
+// Catch missing defines in above blocks
+
+#ifndef OS_STRING
 #error "Operating system not supported"
 #endif
 
-#if !defined( ARCH_STRING )
-#error "Architecture not supported"
+#ifndef ARCH_STRING
+// ARCH_STRING is (mostly) only used for informational purposes, so we allow
+// it to be undefined so that more diverse architectures may be compiled
+#define ARCH_STRING "unknown"
 #endif
 
 #ifndef ID_INLINE
@@ -286,6 +368,8 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 
 //endianness
+void CopyShortSwap (void *dest, void *src);
+void CopyLongSwap (void *dest, void *src);
 short ShortSwap (short l);
 int LongSwap (int l);
 float FloatSwap (const float *f);
@@ -294,6 +378,8 @@ float FloatSwap (const float *f);
 #error "Endianness defined as both big and little"
 #elif defined( Q3_BIG_ENDIAN )
 
+#define CopyLittleShort(dest, src) CopyShortSwap(dest, src)
+#define CopyLittleLong(dest, src) CopyLongSwap(dest, src)
 #define LittleShort(x) ShortSwap(x)
 #define LittleLong(x) LongSwap(x)
 #define LittleFloat(x) FloatSwap(&x)
@@ -303,6 +389,8 @@ float FloatSwap (const float *f);
 
 #elif defined( Q3_LITTLE_ENDIAN )
 
+#define CopyLittleShort(dest, src) Com_Memcpy(dest, src, 2)
+#define CopyLittleLong(dest, src) Com_Memcpy(dest, src, 4)
 #define LittleShort
 #define LittleLong
 #define LittleFloat
@@ -329,8 +417,6 @@ float FloatSwap (const float *f);
 #define PLATFORM_STRING OS_STRING "-" ARCH_STRING
 #else
 #define PLATFORM_STRING OS_STRING "-" ARCH_STRING "-debug"
-#endif
-
 #endif
 
 #endif

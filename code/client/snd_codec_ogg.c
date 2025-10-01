@@ -23,7 +23,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 */
 
 // OGG support is enabled by this define
-#if USE_CODEC_VORBIS
+#ifdef USE_CODEC_VORBIS
 
 // includes for the Q3 sound system
 #include "client.h"
@@ -31,6 +31,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 // includes for the OGG codec
 #include <errno.h>
+#define OV_EXCLUDE_STATIC_CALLBACKS
 #include <vorbis/vorbisfile.h>
 
 // The OGG codec can return the samples in a number of different formats,
@@ -40,7 +41,7 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 // Q3 OGG codec
 snd_codec_t ogg_codec =
 {
-	".ogg",
+	"ogg",
 	S_OGG_CodecLoad,
 	S_OGG_CodecOpenStream,
 	S_OGG_CodecReadStream,
@@ -128,7 +129,7 @@ int S_OGG_Callback_seek(void *datasource, ogg_int64_t offset, int whence)
 			retVal = FS_Seek(stream->file, (long) offset, FS_SEEK_SET);
 
 			// something has gone wrong, so we return here
-			if(!(retVal == 0))
+			if(retVal < 0)
 			{
 			 return retVal;
 			}
@@ -144,7 +145,7 @@ int S_OGG_Callback_seek(void *datasource, ogg_int64_t offset, int whence)
 			retVal = FS_Seek(stream->file, (long) offset, FS_SEEK_CUR);
 
 			// something has gone wrong, so we return here
-			if(!(retVal == 0))
+			if(retVal < 0)
 			{
 			 return retVal;
 			}
@@ -156,14 +157,11 @@ int S_OGG_Callback_seek(void *datasource, ogg_int64_t offset, int whence)
  
 		case SEEK_END :
 		{
-			// Quake 3 seems to have trouble with FS_SEEK_END 
-			// so we use the file length and FS_SEEK_SET
-
 			// set the file position in the actual file with the Q3 function
-			retVal = FS_Seek(stream->file, (long) stream->length + (long) offset, FS_SEEK_SET);
+			retVal = FS_Seek(stream->file, (long) offset, FS_SEEK_END);
 
 			// something has gone wrong, so we return here
-			if(!(retVal == 0))
+			if(retVal < 0)
 			{
 			 return retVal;
 			}
@@ -198,15 +196,19 @@ int S_OGG_Callback_close(void *datasource)
 // ftell() replacement
 long S_OGG_Callback_tell(void *datasource)
 {
+	snd_stream_t   *stream;
+
 	// check if input is valid
 	if(!datasource)
 	{
-		errno = EBADF; 
+		errno = EBADF;
 		return -1;
 	}
 
-	// we keep track of the file position in stream->pos
-	return (long) (((snd_stream_t *) datasource) -> pos);
+	// snd_stream_t in the generic pointer
+	stream = (snd_stream_t *) datasource;
+
+	return (long) FS_FTell(stream->file);
 }
 
 // the callback structure
@@ -251,7 +253,7 @@ snd_stream_t *S_OGG_CodecOpenStream(const char *filename)
 	vf = Z_Malloc(sizeof(OggVorbis_File));
 	if(!vf)
 	{
-		S_CodecUtilClose(stream);
+		S_CodecUtilClose(&stream);
 
 		return NULL;
 	}
@@ -261,7 +263,7 @@ snd_stream_t *S_OGG_CodecOpenStream(const char *filename)
 	{
 		Z_Free(vf);
 
-		S_CodecUtilClose(stream);
+		S_CodecUtilClose(&stream);
 
 		return NULL;
 	}
@@ -273,7 +275,7 @@ snd_stream_t *S_OGG_CodecOpenStream(const char *filename)
 
 		Z_Free(vf);
 
-		S_CodecUtilClose(stream);
+		S_CodecUtilClose(&stream);
 
 		return NULL;
 	}
@@ -285,7 +287,7 @@ snd_stream_t *S_OGG_CodecOpenStream(const char *filename)
 
 		Z_Free(vf);
 
-		S_CodecUtilClose(stream);
+		S_CodecUtilClose(&stream);
 
 		return NULL;  
 	}
@@ -298,7 +300,7 @@ snd_stream_t *S_OGG_CodecOpenStream(const char *filename)
 
 		Z_Free(vf);
 
-		S_CodecUtilClose(stream);
+		S_CodecUtilClose(&stream);
 
 		return NULL;  
 	}
@@ -343,7 +345,7 @@ void S_OGG_CodecCloseStream(snd_stream_t *stream)
 	Z_Free(stream->ptr);
 
 	// close the stream
-	S_CodecUtilClose(stream);
+	S_CodecUtilClose(&stream);
 }
 
 /*
@@ -445,7 +447,7 @@ void *S_OGG_CodecLoad(const char *filename, snd_info_t *info)
 
 	// allocate a buffer
 	// this buffer must be free-ed by the caller of this function
-    	buffer = Z_Malloc(info->size);
+    	buffer = Hunk_AllocateTempMemory(info->size);
 	if(!buffer)
 	{
 		S_OGG_CodecCloseStream(stream);
@@ -459,7 +461,7 @@ void *S_OGG_CodecLoad(const char *filename, snd_info_t *info)
 	// we don't even have read a single byte
 	if(bytesRead <= 0)
 	{
-		Z_Free(buffer);
+		Hunk_FreeTempMemory(buffer);
 		S_OGG_CodecCloseStream(stream);
 
 		return NULL;	

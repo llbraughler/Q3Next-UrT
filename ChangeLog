@@ -1,3 +1,71 @@
+2008-04-04 Various contributors
+	+ Solaris fixes
+	+ Replace vsprintf function in bg_lib.c with vsnprintf implementation started by Patrick Powell
+	+ Compile bg_* files separately for each game module, as originally intended
+	+ Write q3config_server.cfg for the server, to avoid reseting client variables
+		after running a dedicated server
+	+ Split image decoders into their own files
+	+ OS X build updates for most compatibility
+	+ Slackbuild
+	+ Detect available resolutions and offer them in the in game menus
+	+ A few botlib fixes
+	+ Fix poppy captured audio when recording videos
+	+ Extend console logging on crash errors
+	+ Merge *BSD platform definitions in q_platform.h
+	+ IRIX support
+	+ Remove all the old bat/sh QVM building scripts
+	+ Make master server used client configurable (cl_master)
+	+ Fix to QVM compilation on big endian architectures
+	+ OpenBSD support
+	+ Autocomplete key names
+	+ Don't build client command completion on the dedicated server
+	+ Don't apply colour escape chars on input fields
+	+ Rewrite of the win32 dedicated console
+	+ Improved Makefile startup time
+	+ Build dedicated server binary on Windows
+	+ Bump Q3_VERSION to 1.35
+	+ Replacement of platform specific backends with a generic SDL one
+	+ Merge win_net.c and unix_net.c to net_ip.c
+	+ Demote input related console information to developer only so that it doesn't
+		spam the console every time input settings are changed
+	+ PNG texture support
+	+ Cleanup of tabulation in R_LoadImage
+	+ Fixes to console scrolling
+	+ New x86_64 vm that doesn't use gas
+	+ Early out AABB collision optimisation
+	+ Generate QVM dependicies in a better way
+	+ Build process is quieter
+	+ Replace horrendously long list of Makefile build rules with set of inference rules
+	+ Allow CC to be overridden externally to the Makefile
+	+ Move storage of console history from a cvar to a file in order to alleviate
+		security concerns
+	+ Fix bug where transparent surfaces wouldn't draw over skyboxes
+	+ Add input sanitising to various sound playing functions called from mods
+	+ Explicitly set OpenAL distance attenuation model
+	+ Increased the number of registers used for the opStack in the PPC vm from
+		12 to 16
+	+ Fix endian issue in MDR loading
+	+ Add cURL support for HTTP/FTP downloading
+	+ Disable video command when not playing back a demo
+	+ Print the SVN version string in Com_Init()
+	+ OpenAL device enumeration support
+	+ Fix 100% CPU usage on idle dedicated servers
+	+ Windows home directory support
+	+ Improve correctness of AVI files created by video command
+	+ Better SDL joystick support
+	+ sv_minRate
+	+ [cl|sv]_packetdelay
+	+ Various security fixes
+	+ Fix JIT compiler code execution on NX-protected win32 OS
+	+ Fix r_overBrightBits variable getting ignored on Linux
+	+ cl_guid for semi-reliable server authentication
+	+ Anisotropic texture filtering
+	+ Video export doesn't crap out with sv_pure 1 anymore
+	+ Video export doesn't crap out when writing > 2Gb files anymore
+	+ Fix to a bug where servers with long uptimes (~27 days) would consume 100%
+		CPU if the running game did not set the nextmap cvar
+	+ Some OSes no longer requires a vid_restart when changing r_fullscreen
+
 2006-01-24 Various contributors
 	+ Persistent console history
 	+ Added code to sleep a bit when q3 has no focus and sleep a lot when it's
@@ -211,7 +279,7 @@
 		added Wheel support to the DirectInput code IN_DIMouse (in_mouse 1)
 		tweaked the Wheel mouse reading for in_mouse -1 (old win32 input code)
 			handle correctly when zDelta is > 120
-			provide a in_logitechbug cvar to handle buggy Logitech MouseWare driver sending wheel events twice
+			provide an in_logitechbug cvar to handle buggy Logitech MouseWare driver sending wheel events twice
 
 2002-9-26 Timothee Besset <ttimo@idsoftware.com>
 	+ ATVI Quake 3 1.32 Patch #38
@@ -412,7 +480,7 @@
 2002-7-31 Timothee Besset <ttimo@idsoftware.com>
 	+ https://zerowing.idsoftware.com/bugzilla/show_bug.cgi?id=513
 		https://zerowing.idsoftware.com/bugzilla/show_bug.cgi?id=506
-		porting fix from RTCW codebase. client re-orders it's pk3s to scan in the same order than the server
+		porting fix from RTCW codebase. client re-orders its pk3s to scan in the same order than the server
 		this eliminates several 'Invalid .PK3 file referenced' situations (caused by client not referencing the same thing as server)
 	+ fixed border remnants in ta ui
 	+ https://zerowing.idsoftware.com/bugzilla/show_bug.cgi?id=517
@@ -437,7 +505,7 @@
 	+ fix broken link in Linux FAQ	
 
 2002-7-27 Timothee Besset <ttimo@idsoftware.com>
-	+ ta ui: PB display in the browser, in it's additional tab, with sorting
+	+ ta ui: PB display in the browser, in its additional tab, with sorting
 
 2002-7-26 Timothee Besset <ttimo@idsoftware.com>
 	+ PB UI: for baseq3/ AND missionpack/
@@ -566,7 +634,7 @@
     #1 current directory
     #2 fs_homepath
     #3 fs_basepath
-    this was needed to make mod developement easier
+    this was needed to make mod development easier
 
 2001-10-09  Timothee Besset <ttimo@idsoftware.com>
   + https://zerowing.idsoftware.com/bugzilla/show_bug.cgi?id=51
@@ -746,7 +814,7 @@
 	* rebuilding 1.28b, various fixes on linux build:
 	  - SetProgramPath was renamed to Sys_SetDefaultCDPath in unix_shared.c
 	    updated unix_main.c accordingly
-	  - some prototypes in qgl.h are guarded by #ifndef GL_VERSION_1_2 (ARB extentions)
+	  - some prototypes in qgl.h are guarded by #ifndef GL_VERSION_1_2 (ARB extensions)
 	    those prototypes are needed by linux_glimp for importing functions and casting, added a #ifdef __linux__
 	    (not a clean solution)
 	  - game/q_shared.h
@@ -793,7 +861,7 @@
 2001-04-23  Timothee Besset <ttimo@idsoftware.com>
 
 	* cleanup the mod selection code, remove duplicates
-	* some issues with release builds, my main developement box doesn't build stable binaries with release settings
+	* some issues with release builds, my main development box doesn't build stable binaries with release settings
 	  removing -fomit-frame-pointer seems to fix (there's probably a performance hit)
 	  see OMIT-FRAME-POINTER.txt
 
@@ -916,7 +984,7 @@
 	//* or // /* or variations of this. I reverted to exact mirror
 	image of SOS to be sure - short of removing it's too easy to mistake 
 	live code for dead one.
-	Later: have to change 5 occurences to avoid gcc complaints about
+	Later: have to change 5 occurrences to avoid gcc complaints about
 	nested comment tokens.
 	TODO: somebody please get rid of the cruft in here.
 
@@ -1167,7 +1235,7 @@
 	* code/game/g_cmds.c (G_SayTo): CON_CONNECTED.
 	* code/game/ai_main.c: HOOK added (SOS).
 	* code/botlib/be_aas_move.c (AAS_HorizontalVelocityForJump): 
-	correct fix for FPE occuring (SOS).
+	correct fix for FPE occurring (SOS).
 	* code/game/ai_dmq3.c: initmove.viewoffset (SOS).
 
 	* code/game/q_math.c: guard asser/isnan with Q3_VM (q3asm).
@@ -1611,7 +1679,7 @@
 	* code/game/q_shared.c: Q_strncpyz does zero padding (duh).
 	Note: calls strncpy, which does a zero fill up to destsize.
 	If destsize exceeds memory size, zero padding will overwrite
-	adjacent memory. Suspicion was this happend to botimport.
+	adjacent memory. Suspicion was this happened to botimport.
 
 	* code/qcommon/cvar.c: possible problem in Q_strncpyz call.
 
@@ -1715,7 +1783,7 @@
 	* TEST: running with RC4 data files.
 	TODO: "bot library used before setup" (Q3+TA)
 	TODO: Q3 old mods wreak havoc (graceful bounce)
-	TODO: supress "FreeType code not available" in renderer
+	TODO: suppress "FreeType code not available" in renderer
 	TODO: can't move in Q3
 	TODO: items flicker in Q3
 	TODO: no decals in Q3
@@ -1947,7 +2015,7 @@
 	
 	* TEST: tried executing a script - get bounced.
 	TODO: is there any way to jump into a map?
-	TODO: cl_cinematics 0 (supress all fullscreen RoQ)
+	TODO: cl_cinematics 0 (suppress all fullscreen RoQ)
 	Next: used r_logfile 200 in Win32 (RC4) and Linux.
 	There is a buckload of setup code seemingly not done
 	at all in Linux? Either that, or logging is enabled
@@ -2707,7 +2775,7 @@
 	Can't find menu/art/unknownmap.tga
 
 	* Q3TA: after nearly 6 months, a code update from id. SOS access 
-	even. Got it to compile, link and start, but its currently broken
+	even. Got it to compile, link and start, but it's currently broken
 	(menu doesn't render in full, can't get into game etc.). Need
 	a baseline 1.17 to diff against. Last code dump was May 16, with 
 	bspc code updated May 19. Checking working directory of bk000520
@@ -2915,7 +2983,7 @@
         Modules:
           code:      the Q3 engine code, including a jpeg-6/ copy
           common:    code shared by tools
-          libs:      code shared by tools, inlcuding a jpeg6/ copy
+          libs:      code shared by tools, including a jpeg6/ copy
           q3asm:     VM bytecode assembly 
           q3data:    misc. Q3 data conversions
           q3map:     BSP builder

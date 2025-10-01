@@ -23,42 +23,13 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 // Dynamically loads OpenAL
 
-#if USE_OPENAL
+#ifdef USE_OPENAL
 
 #include "qal.h"
 
-#if USE_OPENAL_DLOPEN
+#ifdef USE_OPENAL_DLOPEN
 
-#if USE_SDL_VIDEO
-#include "SDL.h"
-#include "SDL_loadso.h"
-#define OBJTYPE void *
-#define OBJLOAD(x) SDL_LoadObject(x)
-#define SYMLOAD(x,y) SDL_LoadFunction(x,y)
-#define OBJFREE(x) SDL_UnloadObject(x)
-
-#elif defined _WIN32
-#include <windows.h>
-#define OBJTYPE HMODULE
-#define OBJLOAD(x) LoadLibrary(x)
-#define SYMLOAD(x,y) GetProcAddress(x,y)
-#define OBJFREE(x) FreeLibrary(x)
-
-#elif defined __linux__ || defined __FreeBSD__ || defined __OpenBSD__ || defined MACOS_X || defined __sun
-#include <dlfcn.h>
-#define OBJTYPE void *
-#define OBJLOAD(x) dlopen(x, RTLD_LAZY | RTLD_GLOBAL)
-#define SYMLOAD(x,y) dlsym(x,y)
-#define OBJFREE(x) dlclose(x)
-#else
-
-#error "Your platform has no lib loading code or it is disabled"
-#endif
-
-#if defined __linux__ || defined __FreeBSD__ || defined __OpenBSD__ || defined MACOS_X
-#include <unistd.h>
-#include <sys/types.h>
-#endif
+#include "../sys/sys_loadlib.h"
 
 LPALENABLE qalEnable;
 LPALDISABLE qalDisable;
@@ -112,7 +83,7 @@ LPALBUFFERDATA qalBufferData;
 LPALGETBUFFERF qalGetBufferf;
 LPALGETBUFFERI qalGetBufferi;
 LPALDOPPLERFACTOR qalDopplerFactor;
-LPALDOPPLERVELOCITY qalDopplerVelocity;
+LPALSPEEDOFSOUND qalSpeedOfSound;
 LPALDISTANCEMODEL qalDistanceModel;
 
 LPALCCREATECONTEXT qalcCreateContext;
@@ -130,8 +101,13 @@ LPALCGETPROCADDRESS qalcGetProcAddress;
 LPALCGETENUMVALUE qalcGetEnumValue;
 LPALCGETSTRING qalcGetString;
 LPALCGETINTEGERV qalcGetIntegerv;
+LPALCCAPTUREOPENDEVICE qalcCaptureOpenDevice;
+LPALCCAPTURECLOSEDEVICE qalcCaptureCloseDevice;
+LPALCCAPTURESTART qalcCaptureStart;
+LPALCCAPTURESTOP qalcCaptureStop;
+LPALCCAPTURESAMPLES qalcCaptureSamples;
 
-static OBJTYPE OpenALLib = NULL;
+static void *OpenALLib = NULL;
 
 static qboolean alinit_fail = qfalse;
 
@@ -144,7 +120,7 @@ static void *GPA(char *str)
 {
 	void *rv;
 
-	rv = SYMLOAD(OpenALLib, str);
+	rv = Sys_LoadFunction(OpenALLib, str);
 	if(!rv)
 	{
 		Com_Printf( " Can't load symbol %s\n", str);
@@ -168,23 +144,8 @@ qboolean QAL_Init(const char *libname)
 	if(OpenALLib)
 		return qtrue;
 
-	Com_Printf( "Loading \"%s\"...\n", libname);
-	if( (OpenALLib = OBJLOAD(libname)) == 0 )
-	{
-#ifdef _WIN32
+	if(!(OpenALLib = Sys_LoadDll(libname, qtrue)))
 		return qfalse;
-#else
-		char fn[1024];
-		getcwd(fn, sizeof(fn));
-		strncat(fn, "/", sizeof(fn) - strlen(fn) - 1);
-		strncat(fn, libname, sizeof(fn) - strlen(fn) - 1);
-
-		if( (OpenALLib = OBJLOAD(fn)) == 0 )
-		{
-			return qfalse;
-		}
-#endif
-	}
 
 	alinit_fail = qfalse;
 
@@ -240,7 +201,7 @@ qboolean QAL_Init(const char *libname)
 	qalGetBufferf = GPA("alGetBufferf");
 	qalGetBufferi = GPA("alGetBufferi");
 	qalDopplerFactor = GPA("alDopplerFactor");
-	qalDopplerVelocity = GPA("alDopplerVelocity");
+	qalSpeedOfSound = GPA("alSpeedOfSound");
 	qalDistanceModel = GPA("alDistanceModel");
 
 	qalcCreateContext = GPA("alcCreateContext");
@@ -258,6 +219,11 @@ qboolean QAL_Init(const char *libname)
 	qalcGetEnumValue = GPA("alcGetEnumValue");
 	qalcGetString = GPA("alcGetString");
 	qalcGetIntegerv = GPA("alcGetIntegerv");
+	qalcCaptureOpenDevice = GPA("alcCaptureOpenDevice");
+	qalcCaptureCloseDevice = GPA("alcCaptureCloseDevice");
+	qalcCaptureStart = GPA("alcCaptureStart");
+	qalcCaptureStop = GPA("alcCaptureStop");
+	qalcCaptureSamples = GPA("alcCaptureSamples");
 
 	if(alinit_fail)
 	{
@@ -278,7 +244,7 @@ void QAL_Shutdown( void )
 {
 	if(OpenALLib)
 	{
-		OBJFREE(OpenALLib);
+		Sys_UnloadLibrary(OpenALLib);
 		OpenALLib = NULL;
 	}
 
@@ -334,7 +300,7 @@ void QAL_Shutdown( void )
 	qalGetBufferf = NULL;
 	qalGetBufferi = NULL;
 	qalDopplerFactor = NULL;
-	qalDopplerVelocity = NULL;
+	qalSpeedOfSound = NULL;
 	qalDistanceModel = NULL;
 
 	qalcCreateContext = NULL;
@@ -352,6 +318,11 @@ void QAL_Shutdown( void )
 	qalcGetEnumValue = NULL;
 	qalcGetString = NULL;
 	qalcGetIntegerv = NULL;
+	qalcCaptureOpenDevice = NULL;
+	qalcCaptureCloseDevice = NULL;
+	qalcCaptureStart = NULL;
+	qalcCaptureStop = NULL;
+	qalcCaptureSamples = NULL;
 }
 #else
 qboolean QAL_Init(const char *libname)

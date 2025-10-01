@@ -111,16 +111,17 @@ typedef struct
 #define ID_CHAT2		31
 #define ID_CHAT3		32
 #define ID_CHAT4		33
+#define ID_TOGGLEMENU	34
 
 // all others
-#define ID_FREELOOK		34
-#define ID_INVERTMOUSE	35
-#define ID_ALWAYSRUN	36
-#define ID_AUTOSWITCH	37
-#define ID_MOUSESPEED	38
-#define ID_JOYENABLE	39
-#define ID_JOYTHRESHOLD	40
-#define ID_SMOOTHMOUSE	41
+#define ID_FREELOOK		35
+#define ID_INVERTMOUSE	36
+#define ID_ALWAYSRUN	37
+#define ID_AUTOSWITCH	38
+#define ID_MOUSESPEED	39
+#define ID_JOYENABLE	40
+#define ID_JOYTHRESHOLD	41
+#define ID_SMOOTHMOUSE	42
 
 #define ANIM_IDLE		0
 #define ANIM_RUN		1
@@ -205,6 +206,7 @@ typedef struct
 	menuaction_s		chat2;
 	menuaction_s		chat3;
 	menuaction_s		chat4;
+	menuaction_s		togglemenu;
 	menuradiobutton_s	joyenable;
 	menuslider_s		joythreshold;
 	int					section;
@@ -214,7 +216,7 @@ typedef struct
 	vec3_t				playerMoveangles;
 	int					playerLegs;
 	int					playerTorso;
-	int					playerWeapon;
+	weapon_t			playerWeapon;
 	qboolean			playerChat;
 
 	menubitmap_s		back;
@@ -261,6 +263,7 @@ static bind_t g_bindings[] =
 	{"messagemode2", 	"chat - team",		ID_CHAT2,		ANIM_CHAT,		-1,				-1,		-1, -1},
 	{"messagemode3", 	"chat - target",	ID_CHAT3,		ANIM_CHAT,		-1,				-1,		-1, -1},
 	{"messagemode4", 	"chat - attacker",	ID_CHAT4,		ANIM_CHAT,		-1,				-1,		-1, -1},
+	{"togglemenu", 		"toggle menu",		ID_TOGGLEMENU,	ANIM_IDLE,		K_ESCAPE,		-1,		-1, -1},
 	{(char*)NULL,		(char*)NULL,		0,				0,				-1,				-1,		-1,	-1},
 };
 
@@ -333,6 +336,7 @@ static menucommon_s *g_misc_controls[] = {
 	(menucommon_s *)&s_controls.chat2,
 	(menucommon_s *)&s_controls.chat3,
 	(menucommon_s *)&s_controls.chat4,
+	(menucommon_s *)&s_controls.togglemenu,
 	NULL,
 };
 
@@ -350,11 +354,10 @@ Controls_InitCvars
 */
 static void Controls_InitCvars( void )
 {
-	int				i;
 	configcvar_t*	cvarptr;
 
 	cvarptr = g_configcvars;
-	for (i=0; ;i++,cvarptr++)
+	for (;;cvarptr++)
 	{
 		if (!cvarptr->name)
 			break;
@@ -379,10 +382,9 @@ Controls_GetCvarDefault
 static float Controls_GetCvarDefault( char* name )
 {
 	configcvar_t*	cvarptr;
-	int				i;
 
 	cvarptr = g_configcvars;
-	for (i=0; ;i++,cvarptr++)
+	for (;;cvarptr++)
 	{
 		if (!cvarptr->name)
 			return (0);
@@ -402,10 +404,9 @@ Controls_GetCvarValue
 static float Controls_GetCvarValue( char* name )
 {
 	configcvar_t*	cvarptr;
-	int				i;
 
 	cvarptr = g_configcvars;
-	for (i=0; ;i++,cvarptr++)
+	for (;;cvarptr++)
 	{
 		if (!cvarptr->name)
 			return (0);
@@ -430,7 +431,7 @@ static void Controls_UpdateModel( int anim ) {
 	s_controls.playerMoveangles[YAW] = s_controls.playerViewangles[YAW];
 	s_controls.playerLegs		     = LEGS_IDLE;
 	s_controls.playerTorso			 = TORSO_STAND;
-	s_controls.playerWeapon			 = -1;
+	s_controls.playerWeapon			 = WP_NUM_WEAPONS;
 	s_controls.playerChat			 = qfalse;
 
 	switch( anim ) {
@@ -784,7 +785,6 @@ Controls_GetConfig
 */
 static void Controls_GetConfig( void )
 {
-	int		i;
 	int		twokeys[2];
 	bind_t*	bindptr;
 
@@ -792,7 +792,7 @@ static void Controls_GetConfig( void )
 	bindptr = g_bindings;
 
 	// iterate each command, get its numeric binding
-	for (i=0; ;i++,bindptr++)
+	for (;;bindptr++)
 	{
 		if (!bindptr->label)
 			break;
@@ -820,14 +820,13 @@ Controls_SetConfig
 */
 static void Controls_SetConfig( void )
 {
-	int		i;
 	bind_t*	bindptr;
 
 	// set the bindings from the local store
 	bindptr = g_bindings;
 
 	// iterate each command, get its numeric binding
-	for (i=0; ;i++,bindptr++)
+	for (;;bindptr++)
 	{
 		if (!bindptr->label)
 			break;
@@ -863,14 +862,13 @@ Controls_SetDefaults
 */
 static void Controls_SetDefaults( void )
 {
-	int	i;
 	bind_t*	bindptr;
 
 	// set the bindings from the local store
 	bindptr = g_bindings;
 
 	// iterate each command, set its default binding
-	for (i=0; ;i++,bindptr++)
+	for (;;bindptr++)
 	{
 		if (!bindptr->label)
 			break;
@@ -897,7 +895,6 @@ Controls_MenuKey
 static sfxHandle_t Controls_MenuKey( int key )
 {
 	int			id;
-	int			i;
 	qboolean	found;
 	bind_t*		bindptr;
 	found = qfalse;
@@ -945,7 +942,7 @@ static sfxHandle_t Controls_MenuKey( int key )
 	{
 		// remove from any other bind
 		bindptr = g_bindings;
-		for (i=0; ;i++,bindptr++)
+		for (;;bindptr++)
 		{
 			if (!bindptr->label)	
 				break;
@@ -964,7 +961,7 @@ static sfxHandle_t Controls_MenuKey( int key )
 	// assign key to local store
 	id      = ((menucommon_s*)(s_controls.menu.items[s_controls.menu.cursor]))->id;
 	bindptr = g_bindings;
-	for (i=0; ;i++,bindptr++)
+	for (;;bindptr++)
 	{
 		if (!bindptr->label)	
 			break;
@@ -1532,6 +1529,12 @@ static void Controls_MenuInit( void )
 	s_controls.chat4.generic.ownerdraw = Controls_DrawKeyBinding;
 	s_controls.chat4.generic.id        = ID_CHAT4;
 
+	s_controls.togglemenu.generic.type		= MTYPE_ACTION;
+	s_controls.togglemenu.generic.flags     = QMF_LEFT_JUSTIFY|QMF_PULSEIFFOCUS|QMF_GRAYED|QMF_HIDDEN;
+	s_controls.togglemenu.generic.callback  = Controls_ActionEvent;
+	s_controls.togglemenu.generic.ownerdraw = Controls_DrawKeyBinding;
+	s_controls.togglemenu.generic.id        = ID_TOGGLEMENU;
+
 	s_controls.joyenable.generic.type      = MTYPE_RADIOBUTTON;
 	s_controls.joyenable.generic.flags	   = QMF_SMALLFONT;
 	s_controls.joyenable.generic.x	       = SCREEN_WIDTH/2;
@@ -1614,6 +1617,7 @@ static void Controls_MenuInit( void )
 	Menu_AddItem( &s_controls.menu, &s_controls.chat2 );
 	Menu_AddItem( &s_controls.menu, &s_controls.chat3 );
 	Menu_AddItem( &s_controls.menu, &s_controls.chat4 );
+	Menu_AddItem( &s_controls.menu, &s_controls.togglemenu );
 
 	Menu_AddItem( &s_controls.menu, &s_controls.back );
 

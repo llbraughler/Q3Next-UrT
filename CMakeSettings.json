@@ -1,0 +1,42 @@
+﻿{
+  "configurations": [
+    {
+      "name": "x86-Release",
+      "generator": "Ninja",
+      "configurationType": "Release",
+      "buildRoot": "${projectDir}\\out\\build\\${name}",
+      "installRoot": "${projectDir}\\out\\install\\${name}",
+      "cmakeCommandArgs": "",
+      "buildCommandArgs": "",
+      "ctestCommandArgs": "",
+      "inheritEnvironments": [ "msvc_x86" ],
+      "variables": [
+        {
+          "name": "BUILD_CLIENT",
+          "value": "true",
+          "type": "BOOL"
+        },
+        {
+          "name": "BUILD_GAME_LIBRARIES",
+          "value": "False",
+          "type": "BOOL"
+        },
+        {
+          "name": "BUILD_GAME_QVMS",
+          "value": "False",
+          "type": "BOOL"
+        },
+        {
+          "name": "BUILD_STANDALONE",
+          "value": "True",
+          "type": "BOOL"
+        },
+        {
+          "name": "BUILD_SERVER",
+          "value": "False",
+          "type": "BOOL"
+        }
+      ]
+    }
+  ]
+}

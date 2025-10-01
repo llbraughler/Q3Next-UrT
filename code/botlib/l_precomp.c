@@ -131,7 +131,7 @@ void QDECL SourceError(source_t *source, char *str, ...)
 	va_list ap;
 
 	va_start(ap, str);
-	vsprintf(text, str, ap);
+	Q_vsnprintf(text, sizeof(text), str, ap);
 	va_end(ap);
 #ifdef BOTLIB
 	botimport.Print(PRT_ERROR, "file %s, line %d: %s\n", source->scriptstack->filename, source->scriptstack->line, text);
@@ -155,7 +155,7 @@ void QDECL SourceWarning(source_t *source, char *str, ...)
 	va_list ap;
 
 	va_start(ap, str);
-	vsprintf(text, str, ap);
+	Q_vsnprintf(text, sizeof(text), str, ap);
 	va_end(ap);
 #ifdef BOTLIB
 	botimport.Print(PRT_WARNING, "file %s, line %d: %s\n", source->scriptstack->filename, source->scriptstack->line, text);
@@ -269,9 +269,9 @@ token_t *PC_CopyToken(token_t *token)
 	if (!t)
 	{
 #ifdef BSPC
-		Error("out of token space\n");
+		Error("out of token space");
 #else
-		Com_Error(ERR_FATAL, "out of token space\n");
+		Com_Error(ERR_FATAL, "out of token space");
 #endif
 		return NULL;
 	} //end if
@@ -414,7 +414,6 @@ int PC_ReadDefineParms(source_t *source, define_t *define, token_t **parms, int 
 				if (indent <= 0)
 				{
 					if (lastcomma) SourceWarning(source, "too many comma's");
-					lastcomma = 1;
 					break;
 				} //end if
 			} //end if
@@ -469,7 +468,8 @@ int PC_StringizeTokens(token_t *tokens, token_t *token)
 	strcat(token->string, "\"");
 	for (t = tokens; t; t = t->next)
 	{
-		strncat(token->string, t->string, MAX_TOKEN - strlen(token->string) - 1);
+		snprintf(token->string + strlen(token->string),
+			MAX_TOKEN - strlen(token->string), "%s", t->string);
 	} //end for
 	strncat(token->string, "\"", MAX_TOKEN - strlen(token->string) - 1);
 	return qtrue;
@@ -549,7 +549,7 @@ void PC_PrintDefineHashTable(define_t **definehash)
 
 int PC_NameHash(char *name)
 {
-	int register hash, i;
+	int hash, i;
 
 	hash = 0;
 	for (i = 0; name[i] != '\0'; i++)
@@ -783,7 +783,7 @@ int PC_ExpandBuiltinDefine(source_t *source, token_t *deftoken, define_t *define
 int PC_ExpandDefine(source_t *source, token_t *deftoken, define_t *define,
 										token_t **firsttoken, token_t **lasttoken)
 {
-	token_t *parms[MAX_DEFINEPARMS], *dt, *pt, *t;
+	token_t *parms[MAX_DEFINEPARMS] = { NULL }, *dt, *pt, *t;
 	token_t *t1, *t2, *first, *last, *nextpt, token;
 	int parmnum, i;
 
@@ -972,7 +972,7 @@ int PC_Directive_include(source_t *source)
 {
 	script_t *script;
 	token_t token;
-	char path[MAX_PATH];
+	char path[MAX_QPATH];
 #ifdef QUAKE
 	foundfile_t file;
 #endif //QUAKE
@@ -996,14 +996,14 @@ int PC_Directive_include(source_t *source)
 		script = LoadScriptFile(token.string);
 		if (!script)
 		{
-			strcpy(path, source->includepath);
-			strcat(path, token.string);
+			Q_strncpyz(path, source->includepath, sizeof(path));
+			Q_strcat(path, sizeof(path), token.string);
 			script = LoadScriptFile(path);
 		} //end if
 	} //end if
 	else if (token.type == TT_PUNCTUATION && *token.string == '<')
 	{
-		strcpy(path, source->includepath);
+		Q_strncpyz(path, source->includepath, sizeof(path));
 		while(PC_ReadSourceToken(source, &token))
 		{
 			if (token.linescrossed > 0)
@@ -1012,7 +1012,7 @@ int PC_Directive_include(source_t *source)
 				break;
 			} //end if
 			if (token.type == TT_PUNCTUATION && *token.string == '>') break;
-			strncat(path, token.string, MAX_PATH - 1);
+			Q_strcat(path, sizeof(path), token.string);
 		} //end while
 		if (*token.string != '>')
 		{
@@ -1036,7 +1036,7 @@ int PC_Directive_include(source_t *source)
 	{
 		Com_Memset(&file, 0, sizeof(foundfile_t));
 		script = LoadScriptFile(path);
-		if (script) strncpy(script->filename, path, MAX_PATH);
+		if (script) Q_strncpyz(script->filename, path, sizeof(script->filename));
 	} //end if
 #endif //QUAKE
 	if (!script)
@@ -1209,12 +1209,6 @@ int PC_Directive_define(source_t *source)
 		//unread the define name before executing the #undef directive
 		PC_UnreadSourceToken(source, &token);
 		if (!PC_Directive_undef(source)) return qfalse;
-		//if the define was not removed (define->flags & DEFINE_FIXED)
-#if DEFINEHASHING
-		define = PC_FindHashedDefine(source->definehash, token.string);
-#else
-		define = PC_FindDefine(source->defines, token.string);
-#endif //DEFINEHASHING
 	} //end if
 	//allocate define
 	define = (define_t *) GetMemory(sizeof(define_t));
@@ -1330,7 +1324,7 @@ define_t *PC_DefineFromString(char *string)
 	script = LoadScriptMemory(string, strlen(string), "*extern");
 	//create a new source
 	Com_Memset(&src, 0, sizeof(source_t));
-	strncpy(src.filename, "*extern", MAX_PATH);
+	Q_strncpyz(src.filename, "*extern", sizeof(src.filename));
 	src.scriptstack = script;
 #if DEFINEHASHING
 	src.definehash = GetClearedMemory(DEFINEHASHSIZE * sizeof(define_t *));
@@ -1362,7 +1356,7 @@ define_t *PC_DefineFromString(char *string)
 #endif //DEFINEHASHING
 	//
 	FreeScript(script);
-	//if the define was created succesfully
+	//if the define was created successfully
 	if (res > 0) return def;
 	//free the define is created
 	if (src.defines) PC_FreeDefine(def);
@@ -1617,7 +1611,7 @@ typedef struct operator_s
 typedef struct value_s
 {
 	signed long int intvalue;
-	double floatvalue;
+	float floatvalue;
 	int parentheses;
 	struct value_s *prev, *next;
 } value_t;
@@ -1666,7 +1660,7 @@ int PC_OperatorPriority(int op)
 #define MAX_OPERATORS	64
 #define AllocValue(val)									\
 	if (numvalues >= MAX_VALUES) {						\
-		SourceError(source, "out of value space\n");		\
+		SourceError(source, "out of value space");		\
 		error = 1;										\
 		break;											\
 	}													\
@@ -1676,7 +1670,7 @@ int PC_OperatorPriority(int op)
 //
 #define AllocOperator(op)								\
 	if (numoperators >= MAX_OPERATORS) {				\
-		SourceError(source, "out of operator space\n");	\
+		SourceError(source, "out of operator space");	\
 		error = 1;										\
 		break;											\
 	}													\
@@ -1685,7 +1679,7 @@ int PC_OperatorPriority(int op)
 #define FreeOperator(op)
 
 int PC_EvaluateTokens(source_t *source, token_t *tokens, signed long int *intvalue,
-																	double *floatvalue, int integer)
+																	float *floatvalue, int integer)
 {
 	operator_t *o, *firstoperator, *lastoperator;
 	value_t *v, *firstvalue, *lastvalue, *v1, *v2;
@@ -1696,7 +1690,7 @@ int PC_EvaluateTokens(source_t *source, token_t *tokens, signed long int *intval
 	int lastwasvalue = 0;
 	int negativevalue = 0;
 	int questmarkintvalue = 0;
-	double questmarkfloatvalue = 0;
+	float questmarkfloatvalue = 0;
 	int gotquestmarkvalue = qfalse;
 	//
 	operator_t operator_heap[MAX_OPERATORS];
@@ -1838,7 +1832,7 @@ int PC_EvaluateTokens(source_t *source, token_t *tokens, signed long int *intval
 						t->subtype == P_BIN_AND || t->subtype == P_BIN_OR ||
 						t->subtype == P_BIN_XOR)
 					{
-						SourceError(source, "illigal operator %s on floating point operands\n", t->string);
+						SourceError(source, "illigal operator %s on floating point operands", t->string);
 						error = 1;
 						break;
 					} //end if
@@ -2005,7 +1999,7 @@ int PC_EvaluateTokens(source_t *source, token_t *tokens, signed long int *intval
 									v1->floatvalue *= v2->floatvalue; break;
 			case P_DIV:				if (!v2->intvalue || !v2->floatvalue)
 									{
-										SourceError(source, "divide by zero in #if/#elif\n");
+										SourceError(source, "divide by zero in #if/#elif");
 										error = 1;
 										break;
 									}
@@ -2013,7 +2007,7 @@ int PC_EvaluateTokens(source_t *source, token_t *tokens, signed long int *intval
 									v1->floatvalue /= v2->floatvalue; break;
 			case P_MOD:				if (!v2->intvalue)
 									{
-										SourceError(source, "divide by zero in #if/#elif\n");
+										SourceError(source, "divide by zero in #if/#elif");
 										error = 1;
 										break;
 									}
@@ -2093,10 +2087,12 @@ int PC_EvaluateTokens(source_t *source, token_t *tokens, signed long int *intval
 			//remove the second value if not question mark operator
 			if (o->operator != P_QUESTIONMARK) v = v->next;
 			//
-			if (v->prev) v->prev->next = v->next;
-			else firstvalue = v->next;
-			if (v->next) v->next->prev = v->prev;
-			else lastvalue = v->prev;
+			if (v)
+			{
+				if (v->prev) v->prev->next = v->next;
+				else firstvalue = v->next;
+				if (v->next) v->next->prev = v->prev;
+			}
 			//FreeMemory(v);
 			FreeValue(v);
 		} //end if
@@ -2104,7 +2100,6 @@ int PC_EvaluateTokens(source_t *source, token_t *tokens, signed long int *intval
 		if (o->prev) o->prev->next = o->next;
 		else firstoperator = o->next;
 		if (o->next) o->next->prev = o->prev;
-		else lastoperator = o->prev;
 		//FreeMemory(o);
 		FreeOperator(o);
 	} //end while
@@ -2137,7 +2132,7 @@ int PC_EvaluateTokens(source_t *source, token_t *tokens, signed long int *intval
 // Changes Globals:		-
 //============================================================================
 int PC_Evaluate(source_t *source, signed long int *intvalue,
-												double *floatvalue, int integer)
+												float *floatvalue, int integer)
 {
 	token_t token, *firsttoken, *lasttoken;
 	token_t *t, *nexttoken;
@@ -2236,7 +2231,7 @@ int PC_Evaluate(source_t *source, signed long int *intvalue,
 // Changes Globals:		-
 //============================================================================
 int PC_DollarEvaluate(source_t *source, signed long int *intvalue,
-												double *floatvalue, int integer)
+												float *floatvalue, int integer)
 {
 	int indent, defined = qfalse;
 	token_t token, *firsttoken, *lasttoken;
@@ -2451,7 +2446,7 @@ int PC_Directive_eval(source_t *source)
 	token.whitespace_p = source->scriptstack->script_p;
 	token.endwhitespace_p = source->scriptstack->script_p;
 	token.linescrossed = 0;
-	sprintf(token.string, "%d", abs(value));
+	sprintf(token.string, "%ld", labs(value));
 	token.type = TT_NUMBER;
 	token.subtype = TT_INTEGER|TT_LONG|TT_DECIMAL;
 	PC_UnreadSourceToken(source, &token);
@@ -2466,7 +2461,7 @@ int PC_Directive_eval(source_t *source)
 //============================================================================
 int PC_Directive_evalfloat(source_t *source)
 {
-	double value;
+	float value;
 	token_t token;
 
 	if (!PC_Evaluate(source, NULL, &value, qfalse)) return qfalse;
@@ -2556,15 +2551,19 @@ int PC_DollarDirective_evalint(source_t *source)
 	token.whitespace_p = source->scriptstack->script_p;
 	token.endwhitespace_p = source->scriptstack->script_p;
 	token.linescrossed = 0;
-	sprintf(token.string, "%d", abs(value));
+	sprintf(token.string, "%ld", labs(value));
 	token.type = TT_NUMBER;
 	token.subtype = TT_INTEGER|TT_LONG|TT_DECIMAL;
+
 #ifdef NUMBERVALUE
-	token.intvalue = value;
-	token.floatvalue = value;
+	token.intvalue = labs(value);
+	token.floatvalue = token.intvalue;
 #endif //NUMBERVALUE
+
 	PC_UnreadSourceToken(source, &token);
-	if (value < 0) UnreadSignToken(source);
+	if (value < 0)
+		UnreadSignToken(source);
+
 	return qtrue;
 } //end of the function PC_DollarDirective_evalint
 //============================================================================
@@ -2575,7 +2574,7 @@ int PC_DollarDirective_evalint(source_t *source)
 //============================================================================
 int PC_DollarDirective_evalfloat(source_t *source)
 {
-	double value;
+	float value;
 	token_t token;
 
 	if (!PC_DollarEvaluate(source, NULL, &value, qfalse)) return qfalse;
@@ -2586,12 +2585,16 @@ int PC_DollarDirective_evalfloat(source_t *source)
 	sprintf(token.string, "%1.2f", fabs(value));
 	token.type = TT_NUMBER;
 	token.subtype = TT_FLOAT|TT_LONG|TT_DECIMAL;
+
 #ifdef NUMBERVALUE
-	token.intvalue = (unsigned long) value;
-	token.floatvalue = value;
+	token.floatvalue = fabs(value);
+	token.intvalue = (unsigned long) token.floatvalue;
 #endif //NUMBERVALUE
+
 	PC_UnreadSourceToken(source, &token);
-	if (value < 0) UnreadSignToken(source);
+	if (value < 0)
+		UnreadSignToken(source);
+
 	return qtrue;
 } //end of the function PC_DollarDirective_evalfloat
 //============================================================================
@@ -2742,7 +2745,7 @@ int PC_ReadToken(source_t *source, token_t *token)
 					token->string[strlen(token->string)-1] = '\0';
 					if (strlen(token->string) + strlen(newtoken.string+1) + 1 >= MAX_TOKEN)
 					{
-						SourceError(source, "string longer than MAX_TOKEN %d\n", MAX_TOKEN);
+						SourceError(source, "string longer than MAX_TOKEN %d", MAX_TOKEN);
 						return qfalse;
 					}
 					strcat(token->string, newtoken.string+1);
@@ -2832,6 +2835,7 @@ int PC_ExpectTokenType(source_t *source, int type, int subtype, token_t *token)
 	{
 		if ((token->subtype & subtype) != subtype)
 		{
+			strcpy(str, "");
 			if (subtype & TT_DECIMAL) strcpy(str, "decimal");
 			if (subtype & TT_HEX) strcpy(str, "hex");
 			if (subtype & TT_OCTAL) strcpy(str, "octal");
@@ -2955,10 +2959,14 @@ void PC_UnreadToken(source_t *source, token_t *token)
 //============================================================================
 void PC_SetIncludePath(source_t *source, char *path)
 {
-	strncpy(source->includepath, path, MAX_PATH);
+	size_t len;
+
+	Q_strncpyz(source->includepath, path, sizeof(source->includepath)-1);
+
+	len = strlen(source->includepath);
 	//add trailing path seperator
-	if (source->includepath[strlen(source->includepath)-1] != '\\' &&
-		source->includepath[strlen(source->includepath)-1] != '/')
+	if (len > 0 && source->includepath[len-1] != '\\' &&
+		source->includepath[len-1] != '/')
 	{
 		strcat(source->includepath, PATHSEPERATOR_STR);
 	} //end if

@@ -79,10 +79,10 @@ static int  bufIndex;
 SafeFS_Write
 ===============
 */
-static ID_INLINE void SafeFS_Write( const void *buffer, int len, fileHandle_t f )
+static ID_INLINE void SafeFS_Write( const void *buf, int len, fileHandle_t f )
 {
-  if( FS_Write( buffer, len, f ) < len )
-    Com_Error( ERR_DROP, "Failed to write avi file\n" );
+  if( FS_Write( buf, len, f ) < len )
+    Com_Error( ERR_DROP, "Failed to write avi file" );
 }
 
 /*
@@ -124,17 +124,6 @@ static ID_INLINE void WRITE_2BYTES( int x )
 
 /*
 ===============
-WRITE_1BYTES
-===============
-*/
-static ID_INLINE void WRITE_1BYTES( int x )
-{
-  buffer[ bufIndex ] = x;
-  bufIndex += 1;
-}
-
-/*
-===============
 START_CHUNK
 ===============
 */
@@ -142,7 +131,7 @@ static ID_INLINE void START_CHUNK( const char *s )
 {
   if( afd.chunkStackTop == MAX_RIFF_CHUNKS )
   {
-    Com_Error( ERR_DROP, "ERROR: Top of chunkstack breached\n" );
+    Com_Error( ERR_DROP, "ERROR: Top of chunkstack breached" );
   }
 
   afd.chunkStack[ afd.chunkStackTop ] = bufIndex;
@@ -162,7 +151,7 @@ static ID_INLINE void END_CHUNK( void )
 
   if( afd.chunkStackTop <= 0 )
   {
-    Com_Error( ERR_DROP, "ERROR: Bottom of chunkstack breached\n" );
+    Com_Error( ERR_DROP, "ERROR: Bottom of chunkstack breached" );
   }
 
   afd.chunkStackTop--;
@@ -368,12 +357,21 @@ qboolean CL_OpenAVIForWriting( const char *fileName )
   else
     afd.motionJpeg = qfalse;
 
-  afd.cBuffer = Z_Malloc( afd.width * afd.height * 4 );
-  afd.eBuffer = Z_Malloc( afd.width * afd.height * 4 );
+  // Capture buffer stores RGB pixels but OpenGL ES reads RGBA and converts to RGB in-place.
+  // Encode buffer only needs to store RGB pixels.
+  // Allocate a bit more space for the capture buffer to account for possible
+  // padding at the end of pixel lines, and padding for alignment
+  #define MAX_PACK_LEN 16
+  afd.cBuffer = Z_Malloc((afd.width * 4 + MAX_PACK_LEN - 1) * afd.height + MAX_PACK_LEN - 1);
+  // raw avi files have pixel lines start on 4-byte boundaries
+  afd.eBuffer = Z_Malloc(PAD(afd.width * 3, AVI_LINE_PADDING) * afd.height);
 
   afd.a.rate = dma.speed;
   afd.a.format = WAV_FORMAT_PCM;
   afd.a.channels = dma.channels;
+  /* !!! FIXME: if CL_WriteAVIAudioFrame() is ever called from somewhere other
+     !!! FIXME:  than S_TransferStereo16(), we will need to handle/convert
+     !!! FIXME:  float32 samples for AVI writing. */
   afd.a.bits = dma.samplebits;
   afd.a.sampleSize = ( afd.a.bits / 8 ) * afd.a.channels;
 
@@ -467,7 +465,7 @@ void CL_WriteAVIVideoFrame( const byte *imageBuffer, int size )
 {
   int   chunkOffset = afd.fileSize - afd.moviOffset - 8;
   int   chunkSize = 8 + size;
-  int   paddingSize = PAD( size, 2 ) - size;
+  int   paddingSize = PADLEN(size, 2);
   byte  padding[ 4 ] = { 0 };
 
   if( !afd.fileOpen )
@@ -541,7 +539,7 @@ void CL_WriteAVIAudioFrame( const byte *pcmBuffer, int size )
   {
     int   chunkOffset = afd.fileSize - afd.moviOffset - 8;
     int   chunkSize = 8 + bytesInBuffer;
-    int   paddingSize = PAD( bytesInBuffer, 2 ) - bytesInBuffer;
+    int   paddingSize = PADLEN(bytesInBuffer, 2);
     byte  padding[ 4 ] = { 0 };
 
     bufIndex = 0;
@@ -555,7 +553,7 @@ void CL_WriteAVIAudioFrame( const byte *pcmBuffer, int size )
 
     afd.numAudioFrames++;
     afd.moviSize += ( chunkSize + paddingSize );
-    afd.a.totalBytes =+ bytesInBuffer;
+    afd.a.totalBytes += bytesInBuffer;
 
     // Index
     bufIndex = 0;

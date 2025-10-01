@@ -35,10 +35,10 @@ void QDECL Com_Error( int level, const char *error, ... ) {
 	char		text[1024];
 
 	va_start (argptr, error);
-	vsprintf (text, error, argptr);
+	Q_vsnprintf (text, sizeof(text), error, argptr);
 	va_end (argptr);
 
-	trap_Error( va("%s", text) );
+	trap_Error( text );
 }
 
 void QDECL Com_Printf( const char *msg, ... ) {
@@ -46,10 +46,10 @@ void QDECL Com_Printf( const char *msg, ... ) {
 	char		text[1024];
 
 	va_start (argptr, msg);
-	vsprintf (text, msg, argptr);
+	Q_vsnprintf (text, sizeof(text), msg, argptr);
 	va_end (argptr);
 
-	trap_Print( va("%s", text) );
+	trap_Print( text );
 }
 
 /*
@@ -512,6 +512,10 @@ void UI_DrawProportionalString( int x, int y, const char* str, int style, vec4_t
 	int		width;
 	float	sizeScale;
 
+	if( !str ) {
+		return;
+	}
+
 	sizeScale = UI_ProportionalSizeScale( style );
 
 	switch( style & UI_FORMATMASK ) {
@@ -803,7 +807,7 @@ static void NeedCDKeyAction( qboolean result ) {
 
 void UI_SetActiveMenu( uiMenuCommand_t menu ) {
 	// this should be the ONLY way the menu system is brought up
-	// enusure minumum menu data is cached
+	// ensure minimum menu data is cached
 	Menu_Cache();
 
 	switch ( menu ) {
@@ -872,17 +876,21 @@ UI_MouseEvent
 void UI_MouseEvent( int dx, int dy )
 {
 	int				i;
+	int				bias;
 	menucommon_s*	m;
 
 	if (!uis.activemenu)
 		return;
 
+	// convert X bias to 640 coords
+	bias = uis.bias / uis.xscale;
+
 	// update mouse screen position
 	uis.cursorx += dx;
-	if (uis.cursorx < 0)
-		uis.cursorx = 0;
-	else if (uis.cursorx > SCREEN_WIDTH)
-		uis.cursorx = SCREEN_WIDTH;
+	if (uis.cursorx < -bias)
+		uis.cursorx = -bias;
+	else if (uis.cursorx > SCREEN_WIDTH+bias)
+		uis.cursorx = SCREEN_WIDTH+bias;
 
 	uis.cursory += dy;
 	if (uis.cursory < 0)
@@ -994,6 +1002,9 @@ UI_ConsoleCommand
 */
 qboolean UI_ConsoleCommand( int realTime ) {
 	char	*cmd;
+
+	uis.frametime = realTime - uis.realtime;
+	uis.realtime = realTime;
 
 	cmd = UI_Argv( 0 );
 

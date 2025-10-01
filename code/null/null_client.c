@@ -20,11 +20,13 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 ===========================================================================
 */
 
-#include "../client/client.h"
+#include "../qcommon/q_shared.h"
+#include "../qcommon/qcommon.h"
 
 cvar_t *cl_shownet;
 
-void CL_Shutdown( void ) {
+void CL_Shutdown(char *finalmsg, qboolean disconnect, qboolean quit)
+{
 }
 
 void CL_Init( void ) {
@@ -40,10 +42,6 @@ void Key_WriteBindings( fileHandle_t f ) {
 void CL_Frame ( int msec ) {
 }
 
-qboolean CL_IsDownloading(void) {
-	return qfalse;
-}
-
 void CL_PacketEvent( netadr_t from, msg_t *msg ) {
 }
 
@@ -57,7 +55,7 @@ void CL_MapLoading( void ) {
 }
 
 qboolean CL_GameCommand( void ) {
-  return qfalse; // bk001204 - non-void
+  return qfalse;
 }
 
 void CL_KeyEvent (int key, qboolean down, unsigned time) {
@@ -73,9 +71,6 @@ void CL_ForwardCommandToServer( const char *string ) {
 void CL_ConsolePrint( char *txt ) {
 }
 
-void CL_DevConsolePrint( char *txt ) {
-}
-
 void CL_JoystickEvent( int axis, int value, int time ) {
 }
 
@@ -85,14 +80,23 @@ void CL_InitKeyCommands( void ) {
 void CL_CDDialog( void ) {
 }
 
-void CL_FlushMemory( void ) {
+void CL_FlushMemory(void)
+{
 }
 
-void CL_StartHunkUsers( void ) {
+void CL_ShutdownAll(qboolean shutdownRef)
+{
 }
 
-// bk001119 - added new dummy for sv_init.c
-void CL_ShutdownAll(void) {}
+void CL_StartHunkUsers( qboolean rendererOnly ) {
+}
 
-// bk001208 - added new dummy (RC4)
+void CL_InitRef(void)
+{
+}
+
+void CL_Snd_Shutdown(void)
+{
+}
+
 qboolean CL_CDKeyValidate( const char *key, const char *checksum ) { return qtrue; }

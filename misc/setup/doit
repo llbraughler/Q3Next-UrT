@@ -35,6 +35,8 @@ copystartscript()
 	mkdir -p image/bin/Linux/$arch
 	if [ "$arch" = x86_64 ]; then
 		ln -s x86_64 image/bin/Linux/amd64
+	elif [ "$arch" = ppc ]; then
+		ln -s ppc image/bin/Linux/ppc64
 	fi
 	install -m 755 ioquake3.sh image/bin/Linux/$arch/ioquake3
 	install -m 755 ioq3demo.sh image/bin/Linux/$arch/ioq3demo
@@ -44,13 +46,16 @@ archs=()
 for arch in $topdir/build/release-*; do
 	arch=${arch##*-}
 	case "$arch" in
-		i386) echo "define(HAVE_I386,yes)dnl" >> defines.m4
-			copystartscript x86
+		x86) echo "define(HAVE_X86,yes)dnl" >> defines.m4
+			copystartscript $arch
 		;;
 		x86_64) echo "define(HAVE_X86_64,yes)dnl" >> defines.m4
 			copystartscript $arch
 		;;
 		ppc) echo "define(HAVE_PPC,yes)dnl" >> defines.m4
+			copystartscript $arch
+		;;
+		ppc64) echo "define(HAVE_PPC64,yes)dnl" >> defines.m4
 			copystartscript $arch
 		;;
 		*)
@@ -67,6 +72,8 @@ for arch in "${archs[@]}"; do
 	mkdir $dst/baseq3 $dst/demoq3 $dst/missionpack
 	install -m 755 $topdir/build/release-linux-$arch/ioquake3.$arch $dst/ioquake3.$arch
 	install -m 755 $topdir/build/release-linux-$arch/ioq3ded.$arch $dst/ioq3ded.$arch
+	install -m 755 $topdir/build/release-linux-$arch/renderer_opengl1_$arch.so $dst/renderer_opengl1_$arch.so
+	install -m 755 $topdir/build/release-linux-$arch/renderer_opengl2_$arch.so $dst/renderer_opengl2_$arch.so
 	install -m 644 $topdir/build/release-linux-$arch/baseq3/*.so $dst/baseq3
 	install -m 644 $topdir/build/release-linux-$arch/missionpack/*.so $dst/missionpack
 	for i in cgame qagame ui; do
@@ -96,8 +103,13 @@ fi
 ### uninstall script
 install -m 755 ./preuninstall.sh image/preuninstall.sh
 
+# desktop file handling
+install -m 755 ./install-desktop-files.sh image/install-desktop-files.sh
+install -m 755 /usr/bin/xdg-desktop-menu image/xdg-desktop-menu
+install -m 644 ioquake3.desktop image/ioquake3.desktop.in
 
 ### README, COPYING and EULA
+install -m 644 $topdir/voip-readme.txt image/voip-readme.txt
 install -m 644 $topdir/README image/README
 install -m 644 $topdir/COPYING.txt image/COPYING
 

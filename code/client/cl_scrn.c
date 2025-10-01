@@ -196,7 +196,8 @@ to a fixed color.
 Coordinates are at 640 by 480 virtual resolution
 ==================
 */
-void SCR_DrawStringExt( int x, int y, float size, const char *string, float *setColor, qboolean forceColor ) {
+void SCR_DrawStringExt( int x, int y, float size, const char *string, float *setColor, qboolean forceColor,
+		qboolean noColorEscape ) {
 	vec4_t		color;
 	const char	*s;
 	int			xx;
@@ -208,7 +209,7 @@ void SCR_DrawStringExt( int x, int y, float size, const char *string, float *set
 	s = string;
 	xx = x;
 	while ( *s ) {
-		if ( Q_IsColorString( s ) ) {
+		if ( !noColorEscape && Q_IsColorString( s ) ) {
 			s += 2;
 			continue;
 		}
@@ -229,8 +230,10 @@ void SCR_DrawStringExt( int x, int y, float size, const char *string, float *set
 				color[3] = setColor[3];
 				re.SetColor( color );
 			}
-			s += 2;
-			continue;
+			if ( !noColorEscape ) {
+				s += 2;
+				continue;
+			}
 		}
 		SCR_DrawChar( xx, y, size, *s );
 		xx += size;
@@ -240,16 +243,16 @@ void SCR_DrawStringExt( int x, int y, float size, const char *string, float *set
 }
 
 
-void SCR_DrawBigString( int x, int y, const char *s, float alpha ) {
+void SCR_DrawBigString( int x, int y, const char *s, float alpha, qboolean noColorEscape ) {
 	float	color[4];
 
 	color[0] = color[1] = color[2] = 1.0;
 	color[3] = alpha;
-	SCR_DrawStringExt( x, y, BIGCHAR_WIDTH, s, color, qfalse );
+	SCR_DrawStringExt( x, y, BIGCHAR_WIDTH, s, color, qfalse, noColorEscape );
 }
 
-void SCR_DrawBigStringColor( int x, int y, const char *s, vec4_t color ) {
-	SCR_DrawStringExt( x, y, BIGCHAR_WIDTH, s, color, qtrue );
+void SCR_DrawBigStringColor( int x, int y, const char *s, vec4_t color, qboolean noColorEscape ) {
+	SCR_DrawStringExt( x, y, BIGCHAR_WIDTH, s, color, qtrue, noColorEscape );
 }
 
 
@@ -259,11 +262,10 @@ SCR_DrawSmallString[Color]
 
 Draws a multi-colored string with a drop shadow, optionally forcing
 to a fixed color.
-
-Coordinates are at 640 by 480 virtual resolution
 ==================
 */
-void SCR_DrawSmallStringExt( int x, int y, const char *string, float *setColor, qboolean forceColor ) {
+void SCR_DrawSmallStringExt( int x, int y, const char *string, float *setColor, qboolean forceColor,
+		qboolean noColorEscape ) {
 	vec4_t		color;
 	const char	*s;
 	int			xx;
@@ -279,8 +281,10 @@ void SCR_DrawSmallStringExt( int x, int y, const char *string, float *setColor, 
 				color[3] = setColor[3];
 				re.SetColor( color );
 			}
-			s += 2;
-			continue;
+			if ( !noColorEscape ) {
+				s += 2;
+				continue;
+			}
 		}
 		SCR_DrawSmallChar( xx, y, *s );
 		xx += SMALLCHAR_WIDTH;
@@ -314,138 +318,8 @@ static int SCR_Strlen( const char *str ) {
 ** SCR_GetBigStringWidth
 */ 
 int	SCR_GetBigStringWidth( const char *str ) {
-	return SCR_Strlen( str ) * 16;
+	return SCR_Strlen( str ) * BIGCHAR_WIDTH;
 }
-
-int SCR_FontWidth(const char *text, float scale) {
-	if (!cls.fontFont)
-		return 0;
-
-	int 		 count, len;
-	float		 out;
-	glyphInfo_t  *glyph;
-	float		 useScale;
-	const char	 *s    = text;
-	fontInfo_t	 *font = &cls.font;
-
-	useScale = scale * font->glyphScale;
-	out  = 0;
-
-	if (text) {
-		len = strlen(text);
-		count = 0;
-
-		while (s && *s && count < len) {
-			if (Q_IsColorString(s)) {
-				s += 2;
-				continue;
-			}
-
-			glyph = &font->glyphs[(int)*s];
-			out  += glyph->xSkip;
-			s++;
-			count++;
-		}
-	}
-	return out * useScale;
-}
-
-
-void SCR_DrawFontChar(float x, float y, float width, float height, float scale, float s, float t, float s2, float t2, qhandle_t hShader) {
-	if (!cls.fontFont)
-		return;
-
-	float  w, h;
-
-	w = width * scale;
-	h = height * scale;
-	SCR_AdjustFrom640(&x, &y, &w, &h);
-	re.DrawStretchPic(x, y, w, h, s, t, s2, t2, hShader);
-}
-
-/**
- * $(function)
- */
-void SCR_DrawFontText(float x, float y, float scale, vec4_t color, const char *text, int style) {
-	if (!cls.fontFont)
-		return;
-	
-	int 	 len, count;
-	vec4_t		 newColor;
-	vec4_t		 black = {0.0f, 0.0f, 0.0f, 1.0f};
-	vec4_t       grey = { 0.2f, 0.2f, 0.2f, 1.0f };
-	glyphInfo_t  *glyph;
-	float		 useScale;
-	fontInfo_t	 *font = &cls.font;
-
-	useScale = scale * font->glyphScale;
-
-	if (text) {
-		const char	*s = text;
-		re.SetColor( color );
-		memcpy(&newColor[0], &color[0], sizeof(vec4_t));
-		len = strlen(text);
-
-		count = 0;
-
-		while (s && *s && count < len) {
-			glyph = &font->glyphs[(int)*s];
-
-			if (Q_IsColorString(s)) {
-				memcpy( newColor, g_color_table[ColorIndex(*(s + 1))], sizeof(newColor));
-				newColor[3] = color[3];
-				re.SetColor( newColor );
-				s += 2;
-				continue;
-			}
-
-			float  yadj = useScale * glyph->top;
-
-			if ((style == ITEM_TEXTSTYLE_SHADOWED) || (style == ITEM_TEXTSTYLE_SHADOWEDLESS)) {
-				black[3] = newColor[3];
-
-				if (style == ITEM_TEXTSTYLE_SHADOWEDLESS)
-					black[3] *= 0.7;
-
-				if (newColor[0] == 0.0f && newColor[1] == 0.0f && newColor[2] == 0.0f) {
-					grey[3] = black[3];
-					re.SetColor(grey);
-				} else {
-					re.SetColor(black);
-				}
-
-				SCR_DrawFontChar(x + 1, y - yadj + 1,
-						  glyph->imageWidth,
-						  glyph->imageHeight,
-						  useScale,
-						  glyph->s,
-						  glyph->t,
-						  glyph->s2,
-						  glyph->t2,
-						  glyph->glyph);
-
-				colorBlack[3] = 1.0;
-				re.SetColor(newColor);
-			}
-
-			SCR_DrawFontChar(x, y - yadj,
-					  glyph->imageWidth,
-					  glyph->imageHeight,
-					  useScale,
-					  glyph->s,
-					  glyph->t,
-					  glyph->s2,
-					  glyph->t2,
-					  glyph->glyph);
-			x += (glyph->xSkip * useScale);
-			s++;
-			count++;
-		}
-		re.SetColor(NULL);
-	}
-}
-
-
 
 
 //===============================================================================
@@ -469,8 +343,50 @@ void SCR_DrawDemoRecording( void ) {
 	pos = FS_FTell( clc.demofile );
 	sprintf( string, "RECORDING %s: %ik", clc.demoName, pos / 1024 );
 
-	SCR_DrawStringExt( 320 - strlen( string ) * 4, 1, 7, string, g_color_table[7], qtrue );
+	SCR_DrawStringExt( 320 - strlen( string ) * 4, 20, 8, string, g_color_table[7], qtrue, qfalse );
 }
+
+
+#ifdef USE_VOIP
+/*
+=================
+SCR_DrawVoipMeter
+=================
+*/
+void SCR_DrawVoipMeter( void ) {
+	char	buffer[16];
+	char	string[256];
+	int limit, i;
+
+	if (!cl_voipShowMeter->integer)
+		return;  // player doesn't want to show meter at all.
+	else if (!cl_voipSend->integer)
+		return;  // not recording at the moment.
+	else if (clc.state != CA_ACTIVE)
+		return;  // not connected to a server.
+	else if (!clc.voipEnabled)
+		return;  // server doesn't support VoIP.
+	else if (clc.demoplaying)
+		return;  // playing back a demo.
+	else if (!cl_voip->integer)
+		return;  // client has VoIP support disabled.
+
+	limit = (int) (clc.voipPower * 10.0f);
+	if (limit > 10)
+		limit = 10;
+
+	for (i = 0; i < limit; i++)
+		buffer[i] = '*';
+	while (i < 10)
+		buffer[i++] = ' ';
+	buffer[i] = '\0';
+
+	sprintf( string, "VoIP: [%s]", buffer );
+	SCR_DrawStringExt( 320 - strlen( string ) * 4, 10, 8, string, g_color_table[7], qtrue, qfalse );
+}
+#endif
+
+
 
 
 /*
@@ -481,25 +397,18 @@ DEBUG GRAPH
 ===============================================================================
 */
 
-typedef struct
-{
-	float	value;
-	int		color;
-} graphsamp_t;
-
 static	int			current;
-static	graphsamp_t	values[1024];
+static	float		values[1024];
 
 /*
 ==============
 SCR_DebugGraph
 ==============
 */
-void SCR_DebugGraph (float value, int color)
+void SCR_DebugGraph (float value)
 {
-	values[current&1023].value = value;
-	values[current&1023].color = color;
-	current++;
+	values[current] = value;
+	current = (current + 1) % ARRAY_LEN(values);
 }
 
 /*
@@ -511,7 +420,6 @@ void SCR_DrawDebugGraph (void)
 {
 	int		a, x, y, w, i, h;
 	float	v;
-	int		color;
 
 	//
 	// draw the graph
@@ -526,9 +434,8 @@ void SCR_DrawDebugGraph (void)
 
 	for (a=0 ; a<w ; a++)
 	{
-		i = (current-1-a+1024) & 1023;
-		v = values[i].value;
-		color = values[i].color;
+		i = (ARRAY_LEN(values)+current-1-(a % ARRAY_LEN(values))) % ARRAY_LEN(values);
+		v = values[i];
 		v = v * cl_graphscale->integer + cl_graphshift->integer;
 		
 		if (v < 0)
@@ -566,11 +473,15 @@ This will be called twice if rendering in stereo mode
 ==================
 */
 void SCR_DrawScreenField( stereoFrame_t stereoFrame ) {
+	qboolean uiFullscreen;
+
 	re.BeginFrame( stereoFrame );
+
+	uiFullscreen = (uivm && VM_Call( uivm, UI_IS_FULLSCREEN ));
 
 	// wide aspect ratio screens need to have the sides cleared
 	// unless they are displaying game renderings
-	if ( cls.state != CA_ACTIVE && cls.state != CA_CINEMATIC ) {
+	if ( uiFullscreen || clc.state < CA_LOADING ) {
 		if ( cls.glconfig.vidWidth * 480 > cls.glconfig.vidHeight * 640 ) {
 			re.SetColor( g_color_table[0] );
 			re.DrawStretchPic( 0, 0, cls.glconfig.vidWidth, cls.glconfig.vidHeight, 0, 0, 0, 0, cls.whiteShader );
@@ -578,17 +489,12 @@ void SCR_DrawScreenField( stereoFrame_t stereoFrame ) {
 		}
 	}
 
-	if ( !uivm ) {
-		Com_DPrintf("draw screen without UI loaded\n");
-		return;
-	}
-
 	// if the menu is going to cover the entire screen, we
 	// don't need to render anything under it
-	if ( !VM_Call( uivm, UI_IS_FULLSCREEN )) {
-		switch( cls.state ) {
+	if ( uivm && !uiFullscreen ) {
+		switch( clc.state ) {
 		default:
-			Com_Error( ERR_FATAL, "SCR_DrawScreenField: bad cls.state" );
+			Com_Error( ERR_FATAL, "SCR_DrawScreenField: bad clc.state" );
 			break;
 		case CA_CINEMATIC:
 			SCR_DrawCinematic();
@@ -609,7 +515,7 @@ void SCR_DrawScreenField( stereoFrame_t stereoFrame ) {
 		case CA_LOADING:
 		case CA_PRIMED:
 			// draw the game information screen and loading progress
-			CL_CGameRendering( stereoFrame );
+			CL_CGameRendering(stereoFrame);
 
 			// also draw the connection information, so it doesn't
 			// flash away too briefly on local or lan games
@@ -618,14 +524,18 @@ void SCR_DrawScreenField( stereoFrame_t stereoFrame ) {
 			VM_Call( uivm, UI_DRAW_CONNECT_SCREEN, qtrue );
 			break;
 		case CA_ACTIVE:
-			CL_CGameRendering( stereoFrame );
+			// always supply STEREO_CENTER as vieworg offset is now done by the engine.
+			CL_CGameRendering(stereoFrame);
 			SCR_DrawDemoRecording();
+#ifdef USE_VOIP
+			SCR_DrawVoipMeter();
+#endif
 			break;
 		}
 	}
 
 	// the menu draws next
-	if ( cls.keyCatchers & KEYCATCH_UI && uivm ) {
+	if ( Key_GetCatcher( ) & KEYCATCH_UI && uivm ) {
 		VM_Call( uivm, UI_REFRESH, cls.realtime );
 	}
 
@@ -658,20 +568,27 @@ void SCR_UpdateScreen( void ) {
 	}
 	recursive = 1;
 
-	// if running in stereo, we need to draw the frame twice
-	if ( cls.glconfig.stereoEnabled ) {
-		SCR_DrawScreenField( STEREO_LEFT );
-		SCR_DrawScreenField( STEREO_RIGHT );
-	} else {
-		SCR_DrawScreenField( STEREO_CENTER );
-	}
+	// If there is no VM, there are also no rendering commands issued. Stop the renderer in
+	// that case.
+	if( uivm || com_dedicated->integer )
+	{
+		// XXX
+		int in_anaglyphMode = Cvar_VariableIntegerValue("r_anaglyphMode");
+		// if running in stereo, we need to draw the frame twice
+		if ( cls.glconfig.stereoEnabled || in_anaglyphMode) {
+			SCR_DrawScreenField( STEREO_LEFT );
+			SCR_DrawScreenField( STEREO_RIGHT );
+		} else {
+			SCR_DrawScreenField( STEREO_CENTER );
+		}
 
-	if ( com_speeds->integer ) {
-		re.EndFrame( &time_frontend, &time_backend );
-	} else {
-		re.EndFrame( NULL, NULL );
+		if ( com_speeds->integer ) {
+			re.EndFrame( &time_frontend, &time_backend );
+		} else {
+			re.EndFrame( NULL, NULL );
+		}
 	}
-
+	
 	recursive = 0;
 }
 

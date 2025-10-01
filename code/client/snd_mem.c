@@ -31,7 +31,6 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #include "snd_local.h"
 #include "snd_codec.h"
-#include "snd_dmahd.h"
 
 #define DEF_COMSOUNDMEGS "8"
 
@@ -82,12 +81,7 @@ void SND_setup(void) {
 
 	cv = Cvar_Get( "com_soundMegs", DEF_COMSOUNDMEGS, CVAR_LATCH | CVAR_ARCHIVE );
 
-	scs = (
-#ifndef NO_DMAHD
-		dmaHD_Enabled() ? (2*1536) : 
-#endif
-		(cv->integer*1536));
-
+	scs = (cv->integer*1536);
 
 	buffer = malloc(scs*sizeof(sndBuffer) );
 	// allocate the stack based hunk allocator
@@ -104,6 +98,12 @@ void SND_setup(void) {
 	freelist = p + scs - 1;
 
 	Com_Printf("Sound memory manager started\n");
+}
+
+void SND_shutdown(void)
+{
+		free(sfxScratchBuffer);
+		free(buffer);
 }
 
 /*
@@ -126,20 +126,22 @@ static int ResampleSfx( sfx_t *sfx, int channels, int inrate, int inwidth, int s
 
 	outcount = samples / stepscale;
 
+	srcsample = 0;
 	samplefrac = 0;
 	fracstep = stepscale * 256 * channels;
 	chunk = sfx->soundData;
 
 	for (i=0 ; i<outcount ; i++)
 	{
-		srcsample = samplefrac >> 8;
+		srcsample += samplefrac >> 8;
+		samplefrac &= 255;
 		samplefrac += fracstep;
 		for (j=0 ; j<channels ; j++)
 		{
 			if( inwidth == 2 ) {
 				sample = ( ((short *)data)[srcsample+j] );
 			} else {
-				sample = (int)( (unsigned char)(data[srcsample+j]) - 128) << 8;
+				sample = (unsigned int)( (unsigned char)(data[srcsample+j]) - 128) << 8;
 			}
 			part = (i*channels+j)&(SND_CHUNK_SIZE-1);
 			if (part == 0) {
@@ -178,12 +180,14 @@ static int ResampleSfxRaw( short *sfx, int channels, int inrate, int inwidth, in
 
 	outcount = samples / stepscale;
 
+	srcsample = 0;
 	samplefrac = 0;
 	fracstep = stepscale * 256 * channels;
 
 	for (i=0 ; i<outcount ; i++)
 	{
-		srcsample = samplefrac >> 8;
+		srcsample += samplefrac >> 8;
+		samplefrac &= 255;
 		samplefrac += fracstep;
 		for (j=0 ; j<channels ; j++)
 		{
@@ -215,26 +219,17 @@ qboolean S_LoadSound( sfx_t *sfx )
 	snd_info_t	info;
 //	int		size;
 
-#ifndef NO_DMAHD
-	if (dmaHD_Enabled()) return dmaHD_LoadSound(sfx);
-#endif
-
-	// player specific sounds are never directly loaded
-	if ( sfx->soundName[0] == '*') {
-		return qfalse;
-	}
-
 	// load it in
 	data = S_CodecLoad(sfx->soundName, &info);
 	if(!data)
 		return qfalse;
 
 	if ( info.width == 1 ) {
-		Com_DPrintf(S_COLOR_YELLOW "WARNING: %s is a 8 bit wav file\n", sfx->soundName);
+		Com_DPrintf(S_COLOR_YELLOW "WARNING: %s is a 8 bit audio file\n", sfx->soundName);
 	}
 
 	if ( info.rate != 22050 ) {
-		Com_DPrintf(S_COLOR_YELLOW "WARNING: %s is not a 22kHz wav file\n", sfx->soundName);
+		Com_DPrintf(S_COLOR_YELLOW "WARNING: %s is not a 22kHz audio file\n", sfx->soundName);
 	}
 
 	samples = Hunk_AllocateTempMemory(info.channels * info.samples * sizeof(short) * 2);
@@ -273,7 +268,7 @@ qboolean S_LoadSound( sfx_t *sfx )
 	sfx->soundChannels = info.channels;
 	
 	Hunk_FreeTempMemory(samples);
-	Z_Free(data);
+	Hunk_FreeTempMemory(data);
 
 	return qtrue;
 }

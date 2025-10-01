@@ -33,6 +33,21 @@ Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
 
 #define	MAX_ENT_CLUSTERS	16
 
+#ifdef USE_VOIP
+#define VOIP_QUEUE_LENGTH 64
+
+typedef struct voipServerPacket_s
+{
+	int generation;
+	int sequence;
+	int frames;
+	int len;
+	int sender;
+	int flags;
+	byte data[4000];
+} voipServerPacket_t;
+#endif
+
 typedef struct svEntity_s {
 	struct worldSector_s *worldSector;
 	struct svEntity_s *nextEntityInWorldSector;
@@ -63,7 +78,6 @@ typedef struct {
 	int				snapshotCounter;	// incremented for each snapshot built
 	int				timeResidual;		// <= 1000 / sv_frame->value
 	int				nextFrameTime;		// when time > nextFrameTime, process world
-	struct cmodel_s	*models[MAX_MODELS];
 	char			*configstrings[MAX_CONFIGSTRINGS];
 	svEntity_t		svEntities[MAX_GENTITIES];
 
@@ -110,18 +124,20 @@ typedef enum {
 typedef struct netchan_buffer_s {
 	msg_t           msg;
 	byte            msgBuffer[MAX_MSGLEN];
+#ifdef LEGACY_PROTOCOL
+	char		clientCommandString[MAX_STRING_CHARS];	// valid command string for SV_Netchan_Encode
+#endif
 	struct netchan_buffer_s *next;
 } netchan_buffer_t;
 
 typedef struct client_s {
 	clientState_t	state;
 	char			userinfo[MAX_INFO_STRING];		// name, etc
-	char			userinfobuffer[MAX_INFO_STRING]; //used for buffering of user info
 
 	char			reliableCommands[MAX_RELIABLE_COMMANDS][MAX_STRING_CHARS];
-	int				reliableSequence;		// last added reliable message, not necesarily sent or acknowledged yet
+	int				reliableSequence;		// last added reliable message, not necessarily sent or acknowledged yet
 	int				reliableAcknowledge;	// last acknowledged reliable message
-	int				reliableSent;			// last sent reliable message, not necesarily acknowledged yet
+	int				reliableSent;			// last sent reliable message, not necessarily acknowledged yet
 	int				messageAcknowledge;
 
 	int				gamestateMessageNum;	// netchan->outgoingSequence of gamestate
@@ -149,10 +165,9 @@ typedef struct client_s {
 
 	int				deltaMessage;		// frame last client usercmd message
 	int				nextReliableTime;	// svs.time when another reliable command will be allowed
-	int				nextReliableUserTime; // svs.time when another userinfo change will be allowed
 	int				lastPacketTime;		// svs.time when packet was last received
 	int				lastConnectTime;	// svs.time when connection started
-	int				nextSnapshotTime;	// send another snapshot when svs.time >= nextSnapshotTime
+	int				lastSnapshotTime;	// svs.time of last sent snapshot
 	qboolean		rateDelayed;		// true if nextSnapshotTime was set based on rate instead of snapshotMsec
 	int				timeoutCount;		// must timeout a few frames in a row so debugging doesn't break
 	clientSnapshot_t	frames[PACKET_BACKUP];	// updates can be delta'd from here
@@ -169,15 +184,21 @@ typedef struct client_s {
 	netchan_buffer_t *netchan_start_queue;
 	netchan_buffer_t **netchan_end_queue;
 
-	qboolean	demo_recording;	// are we currently recording this client?
-	fileHandle_t	demo_file;	// the file we are writing the demo to
-	qboolean	demo_waiting;	// are we still waiting for the first non-delta frame?
-	int		demo_backoff;	// how many packets (-1 actually) between non-delta frames?
-	int		demo_deltas;	// how many delta frames did we let through so far?
-	
+#ifdef USE_VOIP
+	qboolean hasVoip;
+	qboolean muteAllVoip;
+	qboolean ignoreVoipFromClient[MAX_CLIENTS];
+	voipServerPacket_t *voipPacket[VOIP_QUEUE_LENGTH];
+	int queuedVoipPackets;
+	int queuedVoipIndex;
+#endif
+
 	int				oldServerTime;
-	qboolean			csUpdated[MAX_CONFIGSTRINGS+1];	
-	int             numcmds;    // number of client commands so far (in this time period), for sv_floodprotect
+	qboolean		csUpdated[MAX_CONFIGSTRINGS];
+	
+#ifdef LEGACY_PROTOCOL
+	qboolean		compat;
+#endif
 } client_t;
 
 //=============================================================================
@@ -186,79 +207,57 @@ typedef struct client_s {
 // MAX_CHALLENGES is made large to prevent a denial
 // of service attack that could cycle all of them
 // out before legitimate users connected
-#define	MAX_CHALLENGES	1024
+#define	MAX_CHALLENGES	2048
+// Allow a certain amount of challenges to have the same IP address
+// to make it a bit harder to DOS one single IP address from connecting
+// while not allowing a single ip to grab all challenge resources
+#define MAX_CHALLENGES_MULTI (MAX_CHALLENGES / 2)
 
 #define	AUTHORIZE_TIMEOUT	5000
 
 typedef struct {
 	netadr_t	adr;
 	int			challenge;
-	int 		challengePing;
+	int			clientChallenge;		// challenge number coming from the client
 	int			time;				// time the last packet was sent to the autherize server
 	int			pingTime;			// time the challenge response was sent to client
 	int			firstTime;			// time the adr was first used, for authorize timeout checks
-	qboolean    wasrefused;
+	qboolean	wasrefused;
 	qboolean	connected;
 } challenge_t;
-
-typedef struct {
-	netadr_t	adr;
-	int		time;
-} receipt_t;
-
-// MAX_INFO_RECEIPTS is the maximum number of getstatus+getinfo responses that we send
-// in a two second time period.
-#define MAX_INFO_RECEIPTS	48
-
-#define	MAX_MASTERS	8				// max recipients for heartbeat packets
-
 
 // this structure will be cleared only when the game dll changes
 typedef struct {
 	qboolean	initialized;				// sv_init has completed
 
 	int			time;						// will be strictly increasing across level changes
+	int         msgTime;				    // will be used as precise sent time
 
 	int			snapFlagServerBit;			// ^= SNAPFLAG_SERVERCOUNT every SV_SpawnServer()
 
 	client_t	*clients;					// [sv_maxclients->integer];
-	int			numSnapshotEntities;		// sv_maxclients->integer*PACKET_BACKUP*MAX_PACKET_ENTITIES
+	int			numSnapshotEntities;		// sv_maxclients->integer*PACKET_BACKUP*MAX_SNAPSHOT_ENTITIES
 	int			nextSnapshotEntities;		// next snapshotEntities to use
 	entityState_t	*snapshotEntities;		// [numSnapshotEntities]
 	int			nextHeartbeatTime;
 	challenge_t	challenges[MAX_CHALLENGES];	// to prevent invalid IPs from connecting
-	receipt_t	infoReceipts[MAX_INFO_RECEIPTS];
 	netadr_t	redirectAddress;			// for rcon return messages
-
-	netadr_t	authorizeAddress;			// for rcon return messages
+#ifndef STANDALONE
+	netadr_t	authorizeAddress;			// authorize server address
+#endif
+	int			masterResolveTime[MAX_MASTER_SERVERS]; // next svs.time that server should do dns lookup for master server
 } serverStatic_t;
 
-
-// The value below is how many extra characters we reserve for every instance of '$' in a
-// ut_radio, say, or similar client command.  Some jump maps have very long $location's.
-// On these maps, it may be possible to crash the server if a carefully-crafted
-// client command is sent.  The constant below may require further tweaking.  For example,
-// a text of "$location" would have a total computed length of 25, because "$location" has
-// 9 characters, and we increment that by 16 for the '$'.
-#define STRLEN_INCREMENT_PER_DOLLAR_VAR 16
-
-// Don't allow more than this many dollared-strings (e.g. $location) in a client command
-// such as ut_radio and say.  Keep this value low for safety, in case some things like
-// $location expand to very large strings in some maps.  There is really no reason to have
-// more than 6 dollar vars (such as $weapon or $location) in things you tell other people.
-#define MAX_DOLLAR_VARS 6
-
-// When a radio text (as in "ut_radio 1 1 text") is sent, weird things start to happen
-// when the text gets to be greater than 118 in length.  When the text is really large the
-// server will crash.  There is an in-between gray zone above 118, but I don't really want
-// to go there.  This is the maximum length of radio text that can be sent, taking into
-// account increments due to presence of '$'.
-#define MAX_RADIO_STRLEN 118
-
-// Don't allow more than this text length in a command such as say.  I pulled this
-// value out of my ass because I don't really know exactly when problems start to happen.
-// This value takes into account increments due to the presence of '$'.
-#define MAX_SAY_STRLEN 256
+#define SERVER_MAXBANS	1024
+// Structure for managing bans
+typedef struct
+{
+	netadr_t ip;
+	// For a CIDR-Notation type suffix
+	int subnet;
+	
+	qboolean isexception;
+} serverBan_t;
 
 //=============================================================================
 
@@ -266,14 +265,10 @@ extern	serverStatic_t	svs;				// persistant server info across maps
 extern	server_t		sv;					// cleared each map
 extern	vm_t			*gvm;				// game virtual machine
 
-#define	MAX_MASTER_SERVERS	5
-
 extern	cvar_t	*sv_fps;
 extern	cvar_t	*sv_timeout;
 extern	cvar_t	*sv_zombietime;
 extern	cvar_t	*sv_rconPassword;
-extern	cvar_t	*sv_rconRecoveryPassword;
-extern	cvar_t	*sv_rconAllowedSpamIP;
 extern	cvar_t	*sv_privatePassword;
 extern	cvar_t	*sv_allowDownload;
 extern	cvar_t	*sv_maxclients;
@@ -290,43 +285,64 @@ extern	cvar_t	*sv_mapChecksum;
 extern	cvar_t	*sv_serverid;
 extern	cvar_t	*sv_minRate;
 extern	cvar_t	*sv_maxRate;
+extern	cvar_t	*sv_dlRate;
 extern	cvar_t	*sv_minPing;
 extern	cvar_t	*sv_maxPing;
 extern	cvar_t	*sv_gametype;
 extern	cvar_t	*sv_pure;
-extern	cvar_t	*sv_newpurelist;
 extern	cvar_t	*sv_floodProtect;
 extern	cvar_t	*sv_lanForceRate;
+#ifndef STANDALONE
 extern	cvar_t	*sv_strictAuth;
-extern	cvar_t	*sv_clientsPerIp;
-
-extern	cvar_t	*sv_demonotice;
-
-extern  cvar_t  *sv_sayprefix;
-extern  cvar_t  *sv_tellprefix;
-extern  cvar_t  *sv_demofolder;
-
-#ifdef USE_AUTH
-extern	cvar_t	*sv_authServerIP;
-extern  cvar_t  *sv_auth_engine;
 #endif
+extern	cvar_t	*sv_banFile;
+
+extern	serverBan_t serverBans[SERVER_MAXBANS];
+extern	int serverBansCount;
+
+#ifdef USE_VOIP
+extern	cvar_t	*sv_voip;
+extern	cvar_t	*sv_voipProtocol;
+#endif
+
 
 //===========================================================
 
 //
 // sv_main.c
 //
+typedef struct leakyBucket_s leakyBucket_t;
+struct leakyBucket_s {
+	netadrtype_t	type;
+
+	union {
+		byte	_4[4];
+		byte	_6[16];
+	} ipv;
+
+	int						lastTime;
+	signed char		burst;
+
+	long					hash;
+
+	leakyBucket_t *prev, *next;
+};
+
+extern leakyBucket_t outboundLeakyBucket;
+
+qboolean SVC_RateLimit( leakyBucket_t *bucket, int burst, int period );
+qboolean SVC_RateLimitAddress( netadr_t from, int burst, int period );
+
 void SV_FinalMessage (char *message);
-void QDECL SV_SendServerCommand( client_t *cl, const char *fmt, ...);
+void QDECL SV_SendServerCommand( client_t *cl, const char *fmt, ...) Q_PRINTF_FUNC(2, 3);
 
 
 void SV_AddOperatorCommands (void);
 void SV_RemoveOperatorCommands (void);
 
 
-void SV_MasterHeartbeat (void);
 void SV_MasterShutdown (void);
-
+int SV_RateMsec(client_t *client);
 
 
 
@@ -348,32 +364,33 @@ void SV_SpawnServer( char *server, qboolean killBots );
 //
 // sv_client.c
 //
-void SV_GetChallenge( netadr_t from );
+void SV_GetChallenge(netadr_t from);
 
 void SV_DirectConnect( netadr_t from );
 
+#ifndef STANDALONE
 void SV_AuthorizeIpPacket( netadr_t from );
+#endif
 
 void SV_ExecuteClientMessage( client_t *cl, msg_t *msg );
 void SV_UserinfoChanged( client_t *cl );
 
 void SV_ClientEnterWorld( client_t *client, usercmd_t *cmd );
+void SV_FreeClient(client_t *client);
 void SV_DropClient( client_t *drop, const char *reason );
-
-#ifdef USE_AUTH
-void SV_Auth_DropClient( client_t *drop, const char *reason, const char *message );
-#endif
 
 void SV_ExecuteClientCommand( client_t *cl, const char *s, qboolean clientOK );
 void SV_ClientThink (client_t *cl, usercmd_t *cmd);
 
-void SV_WriteDownloadToClient( client_t *cl , msg_t *msg );
+int SV_WriteDownloadToClient(client_t *cl , msg_t *msg);
+int SV_SendDownloadMessages(void);
+int SV_SendQueuedMessages(void);
+
 
 //
 // sv_ccmds.c
 //
 void SV_Heartbeat_f( void );
-void SVD_WriteDemoFile(const client_t*, const msg_t*);
 
 //
 // sv_snapshot.c
@@ -384,8 +401,6 @@ void SV_WriteFrameToClient (client_t *client, msg_t *msg);
 void SV_SendMessageToClient( msg_t *msg, client_t *client );
 void SV_SendClientMessages( void );
 void SV_SendClientSnapshot( client_t *client );
-void SV_CheckClientUserinfoTimer( void );
-void SV_UpdateUserinfo_f( client_t *cl );
 
 //
 // sv_game.c
@@ -416,6 +431,8 @@ int			SV_BotGetConsoleMessage( int client, char *buf, int size );
 int BotImport_DebugPolygonCreate(int color, int numPoints, vec3_t *points);
 void BotImport_DebugPolygonDelete(int id);
 
+void SV_BotInitBotLib(void);
+
 //============================================================
 //
 // high level object sorting to reduce interaction tests
@@ -431,7 +448,7 @@ void SV_UnlinkEntity( sharedEntity_t *ent );
 void SV_LinkEntity( sharedEntity_t *ent );
 // Needs to be called any time an entity changes origin, mins, maxs,
 // or solid.  Automatically unlinks if needed.
-// sets ent->v.absmin and ent->v.absmax
+// sets ent->r.absmin and ent->r.absmax
 // sets ent->leafnums[] for pvs determination even if the entity
 // is not solid
 
@@ -474,6 +491,6 @@ void SV_ClipToEntity( trace_t *trace, const vec3_t start, const vec3_t mins, con
 // sv_net_chan.c
 //
 void SV_Netchan_Transmit( client_t *client, msg_t *msg);
-void SV_Netchan_TransmitNextFragment( client_t *client );
+int SV_Netchan_TransmitNextFragment(client_t *client);
 qboolean SV_Netchan_Process( client_t *client, msg_t *msg );
-
+void SV_Netchan_FreeQueue(client_t *client);

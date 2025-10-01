@@ -247,6 +247,7 @@ GRAPHICS OPTIONS MENU
 #define ID_DISPLAY		107
 #define ID_SOUND		108
 #define ID_NETWORK		109
+#define ID_RATIO		110
 
 typedef struct {
 	menuframework_s	menu;
@@ -261,6 +262,7 @@ typedef struct {
 	menutext_s		network;
 
 	menulist_s		list;
+	menulist_s		ratio;
 	menulist_s		mode;
 	menulist_s		driver;
 	menuslider_s	tq;
@@ -316,7 +318,7 @@ static InitialVideoOptions_s s_ivo_templates[] =
 	}
 };
 
-#define NUM_IVO_TEMPLATES ( sizeof( s_ivo_templates ) / sizeof( s_ivo_templates[0] ) )
+#define NUM_IVO_TEMPLATES ( ARRAY_LEN( s_ivo_templates ) )
 
 static const char *builtinResolutions[ ] =
 {
@@ -331,12 +333,32 @@ static const char *builtinResolutions[ ] =
 	"1280x1024",
 	"1600x1200",
 	"2048x1536",
-	"856x480 wide screen",
+	"856x480",
 	NULL
 };
 
+static const char *knownRatios[ ][2] =
+{
+	{ "1.25:1", "5:4"   },
+	{ "1.33:1", "4:3"   },
+	{ "1.50:1", "3:2"   },
+	{ "1.56:1", "14:9"  },
+	{ "1.60:1", "16:10" },
+	{ "1.67:1", "5:3"   },
+	{ "1.78:1", "16:9"  },
+	{ NULL    , NULL    }
+};
+
+#define MAX_RESOLUTIONS	32
+
+static const char* ratios[ MAX_RESOLUTIONS ];
+static char ratioBuf[ MAX_RESOLUTIONS ][ 8 ];
+static int ratioToRes[ MAX_RESOLUTIONS ];
+static int resToRatio[ MAX_RESOLUTIONS ];
+
 static char resbuf[ MAX_STRING_CHARS ];
-static const char* detectedResolutions[ 32 ];
+static const char* detectedResolutions[ MAX_RESOLUTIONS ];
+static char currentResolution[ 20 ];
 
 static const char** resolutions = builtinResolutions;
 static qboolean resolutionsDetected = qfalse;
@@ -358,7 +380,7 @@ static int GraphicsOptions_FindBuiltinResolution( int mode )
 
 	for( i = 0; builtinResolutions[ i ]; i++ )
 	{
-		if( !strcmp( builtinResolutions[ i ], detectedResolutions[ mode ] ) )
+		if( !Q_stricmp( builtinResolutions[ i ], detectedResolutions[ mode ] ) )
 			return i;
 	}
 
@@ -382,11 +404,62 @@ static int GraphicsOptions_FindDetectedResolution( int mode )
 
 	for( i = 0; detectedResolutions[ i ]; i++ )
 	{
-		if( !strcmp( builtinResolutions[ mode ], detectedResolutions[ i ] ) )
+		if( !Q_stricmp( builtinResolutions[ mode ], detectedResolutions[ i ] ) )
 			return i;
 	}
 
 	return -1;
+}
+
+/*
+=================
+GraphicsOptions_GetAspectRatios
+=================
+*/
+static void GraphicsOptions_GetAspectRatios( void )
+{
+	int i, r;
+
+	// build ratio list from resolutions
+	for( r = 0; resolutions[r]; r++ )
+	{
+		int w, h;
+		char *x;
+		char str[ sizeof(ratioBuf[0]) ];
+
+		// calculate resolution's aspect ratio
+		x = strchr( resolutions[r], 'x' ) + 1;
+		Q_strncpyz( str, resolutions[r], x-resolutions[r] );
+		w = atoi( str );
+		h = atoi( x );
+		Com_sprintf( str, sizeof(str), "%.2f:1", (float)w / (float)h );
+
+		// rename common ratios ("1.33:1" -> "4:3")
+		for( i = 0; knownRatios[i][0]; i++ ) {
+			if( !Q_stricmp( str, knownRatios[i][0] ) ) {
+				Q_strncpyz( str, knownRatios[i][1], sizeof( str ) );
+				break;
+			}
+		}
+
+		// add ratio to list if it is new
+		// establish res/ratio relationship
+		for( i = 0; ratioBuf[i][0]; i++ )
+		{
+			if( !Q_stricmp( str, ratioBuf[i] ) )
+				break;
+		}
+		if( !ratioBuf[i][0] )
+		{
+			Q_strncpyz( ratioBuf[i], str, sizeof(ratioBuf[i]) );
+			ratioToRes[i] = r;
+		}
+
+		ratios[r] = ratioBuf[r]; 
+		resToRatio[r] = i; 
+	}
+
+	ratios[r] = NULL;
 }
 
 /*
@@ -410,6 +483,50 @@ static void GraphicsOptions_GetInitialVideo( void )
 
 /*
 =================
+GraphicsOptions_GetResolutions
+=================
+*/
+static void GraphicsOptions_GetResolutions( void )
+{
+	trap_Cvar_VariableStringBuffer("r_availableModes", resbuf, sizeof(resbuf));
+	if(*resbuf)
+	{
+		char* s = resbuf;
+		unsigned int i = 0;
+		while( s && i < ARRAY_LEN(detectedResolutions)-1 )
+		{
+			detectedResolutions[i++] = s;
+			s = strchr(s, ' ');
+			if( s )
+				*s++ = '\0';
+		}
+		detectedResolutions[ i ] = NULL;
+
+		// add custom resolution if not in mode list
+		if ( i < ARRAY_LEN(detectedResolutions)-1 )
+		{
+			Com_sprintf( currentResolution, sizeof ( currentResolution ), "%dx%d", uis.glconfig.vidWidth, uis.glconfig.vidHeight );
+
+			for( i = 0; detectedResolutions[ i ]; i++ )
+			{
+				if ( strcmp( detectedResolutions[ i ], currentResolution ) == 0 )
+					break;
+			}
+
+			if ( detectedResolutions[ i ] == NULL )
+			{
+				detectedResolutions[ i++ ] = currentResolution;
+				detectedResolutions[ i ] = NULL;
+			}
+		}
+
+		resolutions = detectedResolutions;
+		resolutionsDetected = qtrue;
+	}
+}
+
+/*
+=================
 GraphicsOptions_CheckConfig
 =================
 */
@@ -423,7 +540,7 @@ static void GraphicsOptions_CheckConfig( void )
 			continue;
 		if ( s_ivo_templates[i].driver != s_graphicsoptions.driver.curvalue )
 			continue;
-		if ( s_ivo_templates[i].mode != s_graphicsoptions.mode.curvalue )
+		if ( GraphicsOptions_FindDetectedResolution(s_ivo_templates[i].mode) != s_graphicsoptions.mode.curvalue )
 			continue;
 		if ( s_ivo_templates[i].fullscreen != s_graphicsoptions.fs.curvalue )
 			continue;
@@ -555,7 +672,12 @@ static void GraphicsOptions_ApplyChanges( void *unused, int notification )
 	if( resolutionsDetected )
 	{
 		// search for builtin mode that matches the detected mode
-		int mode = GraphicsOptions_FindBuiltinResolution( s_graphicsoptions.mode.curvalue );
+		int mode;
+		if ( s_graphicsoptions.mode.curvalue == -1
+			|| s_graphicsoptions.mode.curvalue >= ARRAY_LEN( detectedResolutions ) )
+			s_graphicsoptions.mode.curvalue = 0;
+
+		mode = GraphicsOptions_FindBuiltinResolution( s_graphicsoptions.mode.curvalue );
 		if( mode == -1 )
 		{
 			char w[ 16 ], h[ 16 ];
@@ -573,9 +695,24 @@ static void GraphicsOptions_ApplyChanges( void *unused, int notification )
 		trap_Cvar_SetValue( "r_mode", s_graphicsoptions.mode.curvalue );
 
 	trap_Cvar_SetValue( "r_fullscreen", s_graphicsoptions.fs.curvalue );
-	trap_Cvar_SetValue( "r_colorbits", 0 );
-	trap_Cvar_SetValue( "r_depthbits", 0 );
-	trap_Cvar_SetValue( "r_stencilbits", 0 );
+	switch ( s_graphicsoptions.colordepth.curvalue )
+	{
+	case 0:
+		trap_Cvar_SetValue( "r_colorbits", 0 );
+		trap_Cvar_SetValue( "r_depthbits", 0 );
+		trap_Cvar_Reset( "r_stencilbits" );
+		break;
+	case 1:
+		trap_Cvar_SetValue( "r_colorbits", 16 );
+		trap_Cvar_SetValue( "r_depthbits", 16 );
+		trap_Cvar_SetValue( "r_stencilbits", 0 );
+		break;
+	case 2:
+		trap_Cvar_SetValue( "r_colorbits", 32 );
+		trap_Cvar_SetValue( "r_depthbits", 24 );
+		trap_Cvar_SetValue( "r_stencilbits", 8 );
+		break;
+	}
 	trap_Cvar_SetValue( "r_vertexLight", s_graphicsoptions.lighting.curvalue );
 
 	if ( s_graphicsoptions.geometry.curvalue == 2 )
@@ -619,6 +756,11 @@ static void GraphicsOptions_Event( void* ptr, int event ) {
 	}
 
 	switch( ((menucommon_s*)ptr)->id ) {
+	case ID_RATIO:
+		s_graphicsoptions.mode.curvalue =
+			ratioToRes[ s_graphicsoptions.ratio.curvalue ];
+		// fall through to apply mode constraints
+		
 	case ID_MODE:
 		// clamp 3dfx video modes
 		if ( s_graphicsoptions.driver.curvalue == 1 )
@@ -628,12 +770,16 @@ static void GraphicsOptions_Event( void* ptr, int event ) {
 			else if ( s_graphicsoptions.mode.curvalue > 6 )
 				s_graphicsoptions.mode.curvalue = 6;
 		}
+		s_graphicsoptions.ratio.curvalue =
+			resToRatio[ s_graphicsoptions.mode.curvalue ];
 		break;
 
 	case ID_LIST:
 		ivo = &s_ivo_templates[s_graphicsoptions.list.curvalue];
 
-		s_graphicsoptions.mode.curvalue        = ivo->mode;
+		s_graphicsoptions.mode.curvalue        = GraphicsOptions_FindDetectedResolution(ivo->mode);
+		s_graphicsoptions.ratio.curvalue =
+			resToRatio[ s_graphicsoptions.mode.curvalue ];
 		s_graphicsoptions.tq.curvalue          = ivo->tq;
 		s_graphicsoptions.lighting.curvalue    = ivo->lighting;
 		s_graphicsoptions.colordepth.curvalue  = ivo->colordepth;
@@ -721,7 +867,7 @@ static void GraphicsOptions_SetMenuItems( void )
 
 			for(i = 0; detectedResolutions[i]; ++i)
 			{
-				if(!strcmp(buf, detectedResolutions[i]))
+				if(!Q_stricmp(buf, detectedResolutions[i]))
 				{
 					s_graphicsoptions.mode.curvalue = i;
 					break;
@@ -735,6 +881,8 @@ static void GraphicsOptions_SetMenuItems( void )
 			s_graphicsoptions.mode.curvalue = 3;
 		}
 	}
+	s_graphicsoptions.ratio.curvalue =
+		resToRatio[ s_graphicsoptions.mode.curvalue ];
 	s_graphicsoptions.fs.curvalue = trap_Cvar_VariableValue("r_fullscreen");
 	s_graphicsoptions.allow_extensions.curvalue = trap_Cvar_VariableValue("r_allowExtensions");
 	s_graphicsoptions.tq.curvalue = 3-trap_Cvar_VariableValue( "r_picmip");
@@ -884,28 +1032,9 @@ void GraphicsOptions_MenuInit( void )
 	// zero set all our globals
 	memset( &s_graphicsoptions, 0 ,sizeof(graphicsoptions_t) );
 
-
-	Q_strncpyz(resbuf, UI_Cvar_VariableString("r_availableModes"), sizeof(resbuf));
-	if(*resbuf)
-	{
-		char* s = resbuf;
-		unsigned int i = 0;
-		while( s && i < sizeof(detectedResolutions)/sizeof(detectedResolutions[0])-1)
-		{
-			detectedResolutions[i++] = s;
-			s = strchr(s, ' ');
-			if( s )
-				*s++ = '\0';
-		}
-		detectedResolutions[ i ] = NULL;
-
-		if( i > 0 )
-		{
-			resolutions = detectedResolutions;
-			resolutionsDetected = qtrue;
-		}
-	}
-
+	GraphicsOptions_GetResolutions();
+	GraphicsOptions_GetAspectRatios();
+	
 	GraphicsOptions_Cache();
 
 	s_graphicsoptions.menu.wrapAround = qtrue;
@@ -975,7 +1104,7 @@ void GraphicsOptions_MenuInit( void )
 	s_graphicsoptions.network.style				= UI_RIGHT;
 	s_graphicsoptions.network.color				= color_red;
 
-	y = 240 - 6 * (BIGCHAR_HEIGHT + 2);
+	y = 240 - 7 * (BIGCHAR_HEIGHT + 2);
 	s_graphicsoptions.list.generic.type     = MTYPE_SPINCONTROL;
 	s_graphicsoptions.list.generic.name     = "Graphics Settings:";
 	s_graphicsoptions.list.generic.flags    = QMF_PULSEIFFOCUS|QMF_SMALLFONT;
@@ -1004,9 +1133,19 @@ void GraphicsOptions_MenuInit( void )
 	s_graphicsoptions.allow_extensions.itemnames        = enabled_names;
 	y += BIGCHAR_HEIGHT+2;
 
+	s_graphicsoptions.ratio.generic.type     = MTYPE_SPINCONTROL;
+	s_graphicsoptions.ratio.generic.name     = "Aspect Ratio:";
+	s_graphicsoptions.ratio.generic.flags    = QMF_PULSEIFFOCUS|QMF_SMALLFONT;
+	s_graphicsoptions.ratio.generic.x        = 400;
+	s_graphicsoptions.ratio.generic.y        = y;
+	s_graphicsoptions.ratio.itemnames        = ratios;
+	s_graphicsoptions.ratio.generic.callback = GraphicsOptions_Event;
+	s_graphicsoptions.ratio.generic.id       = ID_RATIO;
+	y += BIGCHAR_HEIGHT+2;
+
 	// references/modifies "r_mode"
 	s_graphicsoptions.mode.generic.type     = MTYPE_SPINCONTROL;
-	s_graphicsoptions.mode.generic.name     = "Video Mode:";
+	s_graphicsoptions.mode.generic.name     = "Resolution:";
 	s_graphicsoptions.mode.generic.flags    = QMF_PULSEIFFOCUS|QMF_SMALLFONT;
 	s_graphicsoptions.mode.generic.x        = 400;
 	s_graphicsoptions.mode.generic.y        = y;
@@ -1089,7 +1228,6 @@ void GraphicsOptions_MenuInit( void )
 	s_graphicsoptions.driverinfo.string           = "Driver Info";
 	s_graphicsoptions.driverinfo.style            = UI_CENTER|UI_SMALLFONT;
 	s_graphicsoptions.driverinfo.color            = color_red;
-	y += BIGCHAR_HEIGHT+2;
 
 	s_graphicsoptions.back.generic.type	    = MTYPE_BITMAP;
 	s_graphicsoptions.back.generic.name     = GRAPHICSOPTIONS_BACK0;
@@ -1124,6 +1262,7 @@ void GraphicsOptions_MenuInit( void )
 	Menu_AddItem( &s_graphicsoptions.menu, ( void * ) &s_graphicsoptions.list );
 	Menu_AddItem( &s_graphicsoptions.menu, ( void * ) &s_graphicsoptions.driver );
 	Menu_AddItem( &s_graphicsoptions.menu, ( void * ) &s_graphicsoptions.allow_extensions );
+	Menu_AddItem( &s_graphicsoptions.menu, ( void * ) &s_graphicsoptions.ratio );
 	Menu_AddItem( &s_graphicsoptions.menu, ( void * ) &s_graphicsoptions.mode );
 	Menu_AddItem( &s_graphicsoptions.menu, ( void * ) &s_graphicsoptions.colordepth );
 	Menu_AddItem( &s_graphicsoptions.menu, ( void * ) &s_graphicsoptions.fs );

@@ -5,8 +5,15 @@
 
 IOQ3_DIR=/usr/local/share/games/quake3
 
-COMPILE_PLATFORM=`uname|sed -e s/_.*//|tr '[:upper:]' '[:lower:]'`
-COMPILE_ARCH=`uname -p | sed -e s/i.86/i386/`
+if [ "x${LD_LIBRARY_PATH}" = "x" ]; then
+	LD_LIBRARY_PATH="${IOQ3_DIR}/lib"
+else
+	LD_LIBRARY_PATH="${IOQ3_DIR}/lib:${LD_LIBRARY_PATH}"
+fi
+export LD_LIBRARY_PATH
+
+COMPILE_PLATFORM=`uname|sed -e 's/_.*//'|tr '[:upper:]' '[:lower:]'`
+COMPILE_ARCH=`uname -p | sed -e 's/i.86/x86/'`
 
 EXEC_REL=release
 
@@ -14,7 +21,7 @@ EXEC_BIN=ioquake3.${COMPILE_ARCH}
 # EXEC_BIN=ioquake3-smp.${COMPILE_ARCH}
 # EXEC_BIN=ioq3ded.${COMPILE_ARCH}
 
-EXEC_FLAGS="+set fs_basepath ${IOQ3_DIR} +set vm_game 1 +set vm_cgame 1 +set vm_ui 1 +set sv_pure 1 +set com_ansiColor 0"
+EXEC_FLAGS="+set fs_basepath ${IOQ3_DIR} +set vm_game 1 +set vm_cgame 1 +set vm_ui 1 +set sv_pure 1 +set ttycon 0 +set com_ansiColor 0"
 
 EXEC_DIR_LIST="${IOQ3_DIR}"
 
