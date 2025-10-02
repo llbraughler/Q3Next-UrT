@@ -63,7 +63,7 @@ typedef struct {
 	int				parseEntitiesNum;		// at the time of this snapshot
 
 	int				serverCommandNum;		// execute all commands up to this before
-											// making the snapshot current
+	// making the snapshot current
 } clSnapshot_t;
 
 
@@ -92,17 +92,17 @@ extern int g_console_field_width;
 
 typedef struct {
 	int			timeoutcount;		// it requres several frames in a timeout condition
-									// to disconnect, preventing debugging breaks from
-									// causing immediate disconnects on continue
+	// to disconnect, preventing debugging breaks from
+	// causing immediate disconnects on continue
 	clSnapshot_t	snap;			// latest received from server
 
 	int			serverTime;			// may be paused during play
 	int			oldServerTime;		// to prevent time from flowing bakcwards
 	int			oldFrameServerTime;	// to check tournament restarts
 	int			serverTimeDelta;	// cl.serverTime = cls.realtime + cl.serverTimeDelta
-									// this value changes as net lag varies
+	// this value changes as net lag varies
 	qboolean	extrapolatedSnapshot;	// set if any cgame frame has been forced to extrapolate
-									// cleared when CL_AdjustTimeDelta looks at it
+	// cleared when CL_AdjustTimeDelta looks at it
 	qboolean	newSnapshots;		// set on parse of any valid packet
 
 	gameState_t	gameState;			// configstrings
@@ -122,7 +122,7 @@ typedef struct {
 	// properly generated command
 	usercmd_t	cmds[CMD_BACKUP];	// each mesage will send several old cmds
 	int			cmdNumber;			// incremented each frame, because multiple
-									// frames may need to be packed into a single packet
+	// frames may need to be packed into a single packet
 
 	outPacket_t	outPackets[PACKET_BACKUP];	// information about each packet we have sent out
 
@@ -134,8 +134,8 @@ typedef struct {
 	vec3_t		viewangles;
 
 	int			serverId;			// included in each client message so the server
-												// can tell if it is for a prior map_restart
-	// big stuff at end of structure so most offsets are 15 bits or less
+	// can tell if it is for a prior map_restart
+// big stuff at end of structure so most offsets are 15 bits or less
 	clSnapshot_t	snapshots[PACKET_BACKUP];
 
 	entityState_t	entityBaselines[MAX_GENTITIES];	// for delta compression when not in previous frame
@@ -227,7 +227,7 @@ typedef struct {
 	int			timeDemoLastFrame;// time the last frame was rendered
 	int			timeDemoMinDuration;	// minimum frame duration
 	int			timeDemoMaxDuration;	// maximum frame duration
-	unsigned char	timeDemoDurations[ MAX_TIMEDEMO_DURATIONS ];	// log of frame durations
+	unsigned char	timeDemoDurations[MAX_TIMEDEMO_DURATIONS];	// log of frame durations
 
 	float		aviVideoFrameRemainder;
 	float		aviSoundFrameRemainder;
@@ -238,7 +238,7 @@ typedef struct {
 
 	// incoming data...
 	// !!! FIXME: convert from parallel arrays to array of a struct.
-	OpusDecoder *opusDecoder[MAX_CLIENTS];
+	OpusDecoder* opusDecoder[MAX_CLIENTS];
 	byte voipIncomingGeneration[MAX_CLIENTS];
 	int voipIncomingSequence[MAX_CLIENTS];
 	float voipGain[MAX_CLIENTS];
@@ -250,7 +250,7 @@ typedef struct {
 	// then we are sending to clientnum i.
 	uint8_t voipTargets[(MAX_CLIENTS + 7) / 8];
 	uint8_t voipFlags;
-	OpusEncoder *opusEncoder;
+	OpusEncoder* opusEncoder;
 	int voipOutgoingDataSize;
 	int voipOutgoingDataFrames;
 	int voipOutgoingSequence;
@@ -361,71 +361,71 @@ extern	qboolean	cl_oldGameSet;
 
 //=============================================================================
 
-extern	vm_t			*cgvm;	// interface to cgame dll or vm
-extern	vm_t			*uivm;	// interface to ui dll or vm
+extern	vm_t* cgvm;	// interface to cgame dll or vm
+extern	vm_t* uivm;	// interface to ui dll or vm
 extern	refexport_t		re;		// interface to refresh .dll
 
 
 //
 // cvars
 //
-extern	cvar_t	*cl_nodelta;
-extern	cvar_t	*cl_debugMove;
-extern	cvar_t	*cl_noprint;
-extern	cvar_t	*cl_timegraph;
-extern	cvar_t	*cl_maxpackets;
-extern	cvar_t	*cl_packetdup;
-extern	cvar_t	*cl_shownet;
-extern	cvar_t	*cl_showSend;
-extern	cvar_t	*cl_timeNudge;
-extern	cvar_t	*cl_showTimeDelta;
-extern	cvar_t	*cl_freezeDemo;
+extern	cvar_t* cl_nodelta;
+extern	cvar_t* cl_debugMove;
+extern	cvar_t* cl_noprint;
+extern	cvar_t* cl_timegraph;
+extern	cvar_t* cl_maxpackets;
+extern	cvar_t* cl_packetdup;
+extern	cvar_t* cl_shownet;
+extern	cvar_t* cl_showSend;
+extern	cvar_t* cl_timeNudge;
+extern	cvar_t* cl_showTimeDelta;
+extern	cvar_t* cl_freezeDemo;
 
-extern	cvar_t	*cl_yawspeed;
-extern	cvar_t	*cl_pitchspeed;
-extern	cvar_t	*cl_run;
-extern	cvar_t	*cl_anglespeedkey;
+extern	cvar_t* cl_yawspeed;
+extern	cvar_t* cl_pitchspeed;
+extern	cvar_t* cl_run;
+extern	cvar_t* cl_anglespeedkey;
 
-extern	cvar_t	*cl_sensitivity;
-extern	cvar_t	*cl_freelook;
+extern	cvar_t* cl_sensitivity;
+extern	cvar_t* cl_freelook;
 
-extern	cvar_t	*cl_mouseAccel;
-extern	cvar_t	*cl_mouseAccelOffset;
-extern	cvar_t	*cl_mouseAccelStyle;
-extern	cvar_t	*cl_showMouseRate;
+extern	cvar_t* cl_mouseAccel;
+extern	cvar_t* cl_mouseAccelOffset;
+extern	cvar_t* cl_mouseAccelStyle;
+extern	cvar_t* cl_showMouseRate;
 
-extern	cvar_t	*m_pitch;
-extern	cvar_t	*m_yaw;
-extern	cvar_t	*m_forward;
-extern	cvar_t	*m_side;
-extern	cvar_t	*m_filter;
+extern	cvar_t* m_pitch;
+extern	cvar_t* m_yaw;
+extern	cvar_t* m_forward;
+extern	cvar_t* m_side;
+extern	cvar_t* m_filter;
 
-extern	cvar_t	*j_pitch;
-extern	cvar_t	*j_yaw;
-extern	cvar_t	*j_forward;
-extern	cvar_t	*j_side;
-extern	cvar_t	*j_up;
-extern	cvar_t	*j_pitch_axis;
-extern	cvar_t	*j_yaw_axis;
-extern	cvar_t	*j_forward_axis;
-extern	cvar_t	*j_side_axis;
-extern	cvar_t	*j_up_axis;
+extern	cvar_t* j_pitch;
+extern	cvar_t* j_yaw;
+extern	cvar_t* j_forward;
+extern	cvar_t* j_side;
+extern	cvar_t* j_up;
+extern	cvar_t* j_pitch_axis;
+extern	cvar_t* j_yaw_axis;
+extern	cvar_t* j_forward_axis;
+extern	cvar_t* j_side_axis;
+extern	cvar_t* j_up_axis;
 
-extern	cvar_t	*cl_timedemo;
-extern	cvar_t	*cl_aviFrameRate;
-extern	cvar_t	*cl_aviMotionJpeg;
+extern	cvar_t* cl_timedemo;
+extern	cvar_t* cl_aviFrameRate;
+extern	cvar_t* cl_aviMotionJpeg;
 
-extern	cvar_t	*cl_activeAction;
+extern	cvar_t* cl_activeAction;
 
-extern	cvar_t	*cl_allowDownload;
-extern  cvar_t  *cl_downloadMethod;
-extern	cvar_t	*cl_conXOffset;
-extern	cvar_t	*cl_inGameVideo;
+extern	cvar_t* cl_allowDownload;
+extern  cvar_t* cl_downloadMethod;
+extern	cvar_t* cl_conXOffset;
+extern	cvar_t* cl_inGameVideo;
 
-extern	cvar_t	*cl_lanForcePackets;
-extern	cvar_t	*cl_autoRecordDemo;
+extern	cvar_t* cl_lanForcePackets;
+extern	cvar_t* cl_autoRecordDemo;
 
-extern	cvar_t	*cl_consoleKeys;
+extern	cvar_t* cl_consoleKeys;
 
 
 extern  cvar_t* cl_auth_engine;
@@ -434,22 +434,22 @@ extern  cvar_t* authc;
 extern  cvar_t* authl; // Auth Login
 
 #ifdef USE_MUMBLE
-extern	cvar_t	*cl_useMumble;
-extern	cvar_t	*cl_mumbleScale;
+extern	cvar_t* cl_useMumble;
+extern	cvar_t* cl_mumbleScale;
 #endif
 
 #ifdef USE_VOIP
 // cl_voipSendTarget is a string: "all" to broadcast to everyone, "none" to
 //  send to no one, or a comma-separated list of client numbers:
 //  "0,7,2,23" ... an empty string is treated like "all".
-extern	cvar_t	*cl_voipUseVAD;
-extern	cvar_t	*cl_voipVADThreshold;
-extern	cvar_t	*cl_voipSend;
-extern	cvar_t	*cl_voipSendTarget;
-extern	cvar_t	*cl_voipGainDuringCapture;
-extern	cvar_t	*cl_voipCaptureMult;
-extern	cvar_t	*cl_voipShowMeter;
-extern	cvar_t	*cl_voip;
+extern	cvar_t* cl_voipUseVAD;
+extern	cvar_t* cl_voipVADThreshold;
+extern	cvar_t* cl_voipSend;
+extern	cvar_t* cl_voipSendTarget;
+extern	cvar_t* cl_voipGainDuringCapture;
+extern	cvar_t* cl_voipCaptureMult;
+extern	cvar_t* cl_voipShowMeter;
+extern	cvar_t* cl_voip;
 
 // 20ms at 48k
 #define VOIP_MAX_FRAME_SAMPLES		( 20 * 48 )
@@ -465,32 +465,32 @@ extern	cvar_t	*cl_voip;
 // cl_main
 //
 
-void CL_Init (void);
-void CL_AddReliableCommand(const char *cmd, qboolean isDisconnectCmd);
+void CL_Init(void);
+void CL_AddReliableCommand(const char* cmd, qboolean isDisconnectCmd);
 
-void CL_StartHunkUsers( qboolean rendererOnly );
+void CL_StartHunkUsers(qboolean rendererOnly);
 
-void CL_Disconnect_f (void);
-void CL_GetChallengePacket (void);
-void CL_Vid_Restart_f( void );
-void CL_Snd_Restart_f (void);
-void CL_StartDemoLoop( void );
-void CL_NextDemo( void );
-void CL_ReadDemoMessage( void );
+void CL_Disconnect_f(void);
+void CL_GetChallengePacket(void);
+void CL_Vid_Restart_f(void);
+void CL_Snd_Restart_f(void);
+void CL_StartDemoLoop(void);
+void CL_NextDemo(void);
+void CL_ReadDemoMessage(void);
 void CL_StopRecord_f(void);
 
 void CL_InitDownloads(void);
 void CL_NextDownload(void);
 
-void CL_GetPing( int n, char *buf, int buflen, int *pingtime );
-void CL_GetPingInfo( int n, char *buf, int buflen );
-void CL_ClearPing( int n );
-int CL_GetPingQueueCount( void );
+void CL_GetPing(int n, char* buf, int buflen, int* pingtime);
+void CL_GetPingInfo(int n, char* buf, int buflen);
+void CL_ClearPing(int n);
+int CL_GetPingQueueCount(void);
 
-void CL_ShutdownRef( void );
-void CL_InitRef( void );
-qboolean CL_CDKeyValidate( const char *key, const char *checksum );
-int CL_ServerStatus( char *serverAddress, char *serverStatusString, int maxLen );
+void CL_ShutdownRef(void);
+void CL_InitRef(void);
+qboolean CL_CDKeyValidate(const char* key, const char* checksum);
+int CL_ServerStatus(char* serverAddress, char* serverStatusString, int maxLen);
 
 qboolean CL_CheckPaused(void);
 
@@ -507,18 +507,18 @@ typedef struct {
 
 void CL_InitInput(void);
 void CL_ShutdownInput(void);
-void CL_SendCmd (void);
-void CL_ClearState (void);
-void CL_ReadPackets (void);
+void CL_SendCmd(void);
+void CL_ClearState(void);
+void CL_ReadPackets(void);
 
-void CL_WritePacket( void );
-void IN_CenterView (void);
+void CL_WritePacket(void);
+void IN_CenterView(void);
 
-void CL_VerifyCode( void );
+void CL_VerifyCode(void);
 
-float CL_KeyState (kbutton_t *key);
-int Key_StringToKeynum( char *str );
-char *Key_KeynumToString (int keynum);
+float CL_KeyState(kbutton_t* key);
+int Key_StringToKeynum(char* str);
+char* Key_KeynumToString(int keynum);
 
 //
 // cl_parse.c
@@ -527,124 +527,123 @@ extern int cl_connectedToPureServer;
 extern int cl_connectedToCheatServer;
 
 #ifdef USE_VOIP
-void CL_Voip_f( void );
+void CL_Voip_f(void);
 #endif
 
-void CL_SystemInfoChanged( void );
-void CL_ParseServerMessage( msg_t *msg );
+void CL_SystemInfoChanged(void);
+void CL_ParseServerMessage(msg_t* msg);
 
 //====================================================================
 
-void	CL_ServerInfoPacket( netadr_t from, msg_t *msg );
-void	CL_LocalServers_f( void );
-void	CL_GlobalServers_f( void );
-void	CL_FavoriteServers_f( void );
-void	CL_Ping_f( void );
-qboolean CL_UpdateVisiblePings_f( int source );
+void	CL_ServerInfoPacket(netadr_t from, msg_t* msg);
+void	CL_LocalServers_f(void);
+void	CL_GlobalServers_f(void);
+void	CL_FavoriteServers_f(void);
+void	CL_Ping_f(void);
+qboolean CL_UpdateVisiblePings_f(int source);
 
 
 //
 // console
 //
-void Con_DrawCharacter (int cx, int line, int num);
+void Con_DrawCharacter(int cx, int line, int num);
 
-void Con_CheckResize (void);
+void Con_CheckResize(void);
 void Con_Init(void);
 void Con_Shutdown(void);
-void Con_Clear_f (void);
-void Con_ToggleConsole_f (void);
-void Con_DrawNotify (void);
-void Con_ClearNotify (void);
-void Con_RunConsole (void);
-void Con_DrawConsole (void);
-void Con_PageUp( void );
-void Con_PageDown( void );
-void Con_Top( void );
-void Con_Bottom( void );
-void Con_Close( void );
+void Con_Clear_f(void);
+void Con_ToggleConsole_f(void);
+void Con_DrawNotify(void);
+void Con_ClearNotify(void);
+void Con_RunConsole(void);
+void Con_DrawConsole(void);
+void Con_PageUp(void);
+void Con_PageDown(void);
+void Con_Top(void);
+void Con_Bottom(void);
+void Con_Close(void);
 
-void CL_LoadConsoleHistory( void );
-void CL_SaveConsoleHistory( void );
+void CL_LoadConsoleHistory(void);
+void CL_SaveConsoleHistory(void);
 
 //
 // cl_scrn.c
 //
-void	SCR_Init (void);
-void	SCR_UpdateScreen (void);
+void	SCR_Init(void);
+void	SCR_UpdateScreen(void);
 
-void	SCR_DebugGraph (float value);
+void	SCR_DebugGraph(float value);
 
-int		SCR_GetBigStringWidth( const char *str );	// returns in virtual 640x480 coordinates
+int		SCR_GetBigStringWidth(const char* str);	// returns in virtual 640x480 coordinates
 
-void	SCR_AdjustFrom640( float *x, float *y, float *w, float *h );
-void	SCR_FillRect( float x, float y, float width, float height, 
-					 const float *color );
-void	SCR_DrawPic( float x, float y, float width, float height, qhandle_t hShader );
-void	SCR_DrawNamedPic( float x, float y, float width, float height, const char *picname );
+void	SCR_AdjustFrom640(float* x, float* y, float* w, float* h);
+void	SCR_FillRect(float x, float y, float width, float height,
+	const float* color);
+void	SCR_DrawPic(float x, float y, float width, float height, qhandle_t hShader);
+void	SCR_DrawNamedPic(float x, float y, float width, float height, const char* picname);
 
-void	SCR_DrawBigString( int x, int y, const char *s, float alpha, qboolean noColorEscape );			// draws a string with embedded color control characters with fade
-void	SCR_DrawBigStringColor( int x, int y, const char *s, vec4_t color, qboolean noColorEscape );	// ignores embedded color control characters
-void	SCR_DrawSmallStringExt( int x, int y, const char *string, float *setColor, qboolean forceColor, qboolean noColorEscape );
-void	SCR_DrawSmallChar( int x, int y, int ch );
+void	SCR_DrawBigString(int x, int y, const char* s, float alpha, qboolean noColorEscape);			// draws a string with embedded color control characters with fade
+void	SCR_DrawBigStringColor(int x, int y, const char* s, vec4_t color, qboolean noColorEscape);	// ignores embedded color control characters
+void	SCR_DrawSmallStringExt(int x, int y, const char* string, float* setColor, qboolean forceColor, qboolean noColorEscape);
+void	SCR_DrawSmallChar(int x, int y, int ch);
 
 
 //
 // cl_cin.c
 //
 
-void CL_PlayCinematic_f( void );
-void SCR_DrawCinematic (void);
-void SCR_RunCinematic (void);
-void SCR_StopCinematic (void);
-int CIN_PlayCinematic( const char *arg0, int xpos, int ypos, int width, int height, int bits);
+void CL_PlayCinematic_f(void);
+void SCR_DrawCinematic(void);
+void SCR_RunCinematic(void);
+void SCR_StopCinematic(void);
+int CIN_PlayCinematic(const char* arg0, int xpos, int ypos, int width, int height, int bits);
 e_status CIN_StopCinematic(int handle);
-e_status CIN_RunCinematic (int handle);
-void CIN_DrawCinematic (int handle);
-void CIN_SetExtents (int handle, int x, int y, int w, int h);
-void CIN_SetLooping (int handle, qboolean loop);
+e_status CIN_RunCinematic(int handle);
+void CIN_DrawCinematic(int handle);
+void CIN_SetExtents(int handle, int x, int y, int w, int h);
+void CIN_SetLooping(int handle, qboolean loop);
 void CIN_UploadCinematic(int handle);
 void CIN_CloseAllVideos(void);
 
 //
 // cl_cgame.c
 //
-void CL_InitCGame( void );
-void CL_ShutdownCGame( void );
-qboolean CL_GameCommand( void );
-void CL_CGameRendering( stereoFrame_t stereo );
-void CL_SetCGameTime( void );
-void CL_FirstSnapshot( void );
+void CL_InitCGame(void);
+void CL_ShutdownCGame(void);
+qboolean CL_GameCommand(void);
+void CL_CGameRendering(stereoFrame_t stereo);
+void CL_SetCGameTime(void);
+void CL_FirstSnapshot(void);
 void CL_ShaderStateChanged(void);
 
 //
 // cl_ui.c
 //
-void CL_InitUI( void );
-void CL_ShutdownUI( void );
-int Key_GetCatcher( void );
-void Key_SetCatcher( int catcher );
-void LAN_LoadCachedServers( void );
-void LAN_SaveServersToCache( void );
+void CL_InitUI(void);
+void CL_ShutdownUI(void);
+int Key_GetCatcher(void);
+void Key_SetCatcher(int catcher);
+void LAN_LoadCachedServers(void);
+void LAN_SaveServersToCache(void);
 
 
 //
 // cl_net_chan.c
 //
-void CL_Netchan_Transmit( netchan_t *chan, msg_t* msg);	//int length, const byte *data );
-qboolean CL_Netchan_Process( netchan_t *chan, msg_t *msg );
+void CL_Netchan_Transmit(netchan_t* chan, msg_t* msg);	//int length, const byte *data );
+qboolean CL_Netchan_Process(netchan_t* chan, msg_t* msg);
 
 //
 // cl_avi.c
 //
-qboolean CL_OpenAVIForWriting( const char *filename );
-void CL_TakeVideoFrame( void );
-void CL_WriteAVIVideoFrame( const byte *imageBuffer, int size );
-void CL_WriteAVIAudioFrame( const byte *pcmBuffer, int size );
-qboolean CL_CloseAVI( void );
-qboolean CL_VideoRecording( void );
+qboolean CL_OpenAVIForWriting(const char* filename);
+void CL_TakeVideoFrame(void);
+void CL_WriteAVIVideoFrame(const byte* imageBuffer, int size);
+void CL_WriteAVIAudioFrame(const byte* pcmBuffer, int size);
+qboolean CL_CloseAVI(void);
+qboolean CL_VideoRecording(void);
 
 //
 // cl_main.c
 //
-void CL_WriteDemoMessage ( msg_t *msg, int headerBytes );
-
+void CL_WriteDemoMessage(msg_t* msg, int headerBytes);

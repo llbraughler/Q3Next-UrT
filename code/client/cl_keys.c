@@ -1265,6 +1265,11 @@ void CL_KeyDownEvent( int key, unsigned time )
 		return;
 	}
 
+	if (clc.dlquerying && !(Key_GetCatcher() & KEYCATCH_CONSOLE))
+	{
+		CL_DownloadMenu(key);
+		return;
+	}
 
 	// keys can still be used for bound actions
 	if ( ( key < 128 || key == K_MOUSE1 ) &&

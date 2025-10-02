@@ -35,6 +35,11 @@
           "name": "BUILD_SERVER",
           "value": "False",
           "type": "BOOL"
+        },
+        {
+          "name": "BUILD_RENDERER_GL2",
+          "value": "True",
+          "type": "BOOL"
         }
       ]
     }
