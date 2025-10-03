@@ -1186,7 +1186,7 @@ void CL_ParseBinding( int key, qboolean down, unsigned time )
 	char buf[ MAX_STRING_CHARS ], *p = buf, *end;
 	qboolean allCommands, allowUpCmds;
 
-	if( clc.state == CA_DISCONNECTED && Key_GetCatcher( ) == 0 )
+	if((clc.state == CA_DISCONNECTED || *clc.downloadName) && Key_GetCatcher() == 0)
 		return;
 	if( !keys[key].binding || !keys[key].binding[0] )
 		return;
@@ -1275,6 +1275,14 @@ void CL_KeyDownEvent( int key, unsigned time )
 		}
 	}
 
+	// This is for the hacked download query, whether user trusts data from server
+	if (clc.dlquerying && !(Key_GetCatcher() & KEYCATCH_CONSOLE))
+	{
+		CL_DownloadMenu(key);
+		return;
+	}
+
+
 	// escape is always handled special
 	if ( key == K_ESCAPE ) {
 		if ( Key_GetCatcher( ) & KEYCATCH_MESSAGE ) {
@@ -1292,17 +1300,17 @@ void CL_KeyDownEvent( int key, unsigned time )
 
 		if ( !( Key_GetCatcher( ) & KEYCATCH_UI ) ) {
 			if ( clc.state == CA_ACTIVE && !clc.demoplaying ) {
-				VM_Call( uivm, UI_SET_ACTIVE_MENU, UIMENU_INGAME );
+				if (uivm) VM_Call( uivm, UI_SET_ACTIVE_MENU, UIMENU_INGAME );
 			}
 			else if ( clc.state != CA_DISCONNECTED ) {
 				CL_Disconnect_f();
 				S_StopAllSounds();
-				VM_Call( uivm, UI_SET_ACTIVE_MENU, UIMENU_MAIN );
+				if (uivm) VM_Call( uivm, UI_SET_ACTIVE_MENU, UIMENU_MAIN );
 			}
 			return;
 		}
 
-		VM_Call( uivm, UI_KEY_EVENT, key, qtrue );
+		if (uivm) VM_Call( uivm, UI_KEY_EVENT, key, qtrue );
 		return;
 	}
 
@@ -1322,7 +1330,7 @@ void CL_KeyDownEvent( int key, unsigned time )
 		} 
 	} else if ( Key_GetCatcher( ) & KEYCATCH_MESSAGE ) {
 		Message_Key( key );
-	} else if ( clc.state == CA_DISCONNECTED ) {
+	} else if ( clc.state == CA_DISCONNECTED || clc.state == CA_CONNECTED || *clc.downloadName) {
 		Console_Key( key );
 	}
 }

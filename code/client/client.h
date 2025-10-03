@@ -203,6 +203,7 @@ typedef struct {
 	qboolean	disconnectedForHttpDownload;
 	char		downloadURL[MAX_OSPATH];
 #endif /* USE_HTTP */
+	qboolean dlquerying;
 	int		sv_allowDownload;
 	char		sv_dlURL[MAX_CVAR_VALUE_STRING];
 	int			downloadNumber;
@@ -294,16 +295,16 @@ typedef struct {
 	int			netType;
 	int			gameType;
 	int		  	clients;
-	int		  	bots;
+	int         bots;
 	int		  	maxClients;
 	int			minPing;
 	int			maxPing;
 	int			ping;
 	qboolean	visible;
 	int			punkbuster;
-	int  	    auth;
-	int         password;
-	char        modversion[MAX_NAME_LENGTH];
+	int			auth; //UrT-specific
+	int			password; //UrT-specific
+	char 		modversion[MAX_NAME_LENGTH]; //UrT-specific
 	int			g_humanplayers;
 	int			g_needpass;
 } serverInfo_t;
@@ -427,12 +428,6 @@ extern	cvar_t* cl_autoRecordDemo;
 
 extern	cvar_t* cl_consoleKeys;
 
-
-extern  cvar_t* cl_auth_engine;
-extern  cvar_t* cl_auth;
-extern  cvar_t* authc;
-extern  cvar_t* authl; // Auth Login
-
 #ifdef USE_MUMBLE
 extern	cvar_t* cl_useMumble;
 extern	cvar_t* cl_mumbleScale;
@@ -471,7 +466,7 @@ void CL_AddReliableCommand(const char* cmd, qboolean isDisconnectCmd);
 void CL_StartHunkUsers(qboolean rendererOnly);
 
 void CL_Disconnect_f(void);
-void CL_GetChallengePacket(void);
+//void CL_GetChallengePacket(void);
 void CL_Vid_Restart_f(void);
 void CL_Snd_Restart_f(void);
 void CL_StartDemoLoop(void);
@@ -481,6 +476,7 @@ void CL_StopRecord_f(void);
 
 void CL_InitDownloads(void);
 void CL_NextDownload(void);
+void CL_DownloadMenu(int key);
 
 void CL_GetPing(int n, char* buf, int buflen, int* pingtime);
 void CL_GetPingInfo(int n, char* buf, int buflen);
@@ -489,7 +485,7 @@ int CL_GetPingQueueCount(void);
 
 void CL_ShutdownRef(void);
 void CL_InitRef(void);
-qboolean CL_CDKeyValidate(const char* key, const char* checksum);
+qboolean CL_CDKeyValidate(const char * key, const char * checksum);
 int CL_ServerStatus(char* serverAddress, char* serverStatusString, int maxLen);
 
 qboolean CL_CheckPaused(void);
@@ -509,12 +505,12 @@ void CL_InitInput(void);
 void CL_ShutdownInput(void);
 void CL_SendCmd(void);
 void CL_ClearState(void);
-void CL_ReadPackets(void);
+//void CL_ReadPackets(void);
 
 void CL_WritePacket(void);
 void IN_CenterView(void);
 
-void CL_VerifyCode(void);
+//void CL_VerifyCode(void);
 
 float CL_KeyState(kbutton_t* key);
 int Key_StringToKeynum(char* str);
@@ -538,7 +534,7 @@ void CL_ParseServerMessage(msg_t* msg);
 void	CL_ServerInfoPacket(netadr_t from, msg_t* msg);
 void	CL_LocalServers_f(void);
 void	CL_GlobalServers_f(void);
-void	CL_FavoriteServers_f(void);
+//void	CL_FavoriteServers_f(void);
 void	CL_Ping_f(void);
 qboolean CL_UpdateVisiblePings_f(int source);
 
@@ -546,7 +542,7 @@ qboolean CL_UpdateVisiblePings_f(int source);
 //
 // console
 //
-void Con_DrawCharacter(int cx, int line, int num);
+//void Con_DrawCharacter(int cx, int line, int num);
 
 void Con_CheckResize(void);
 void Con_Init(void);

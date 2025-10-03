@@ -1,4 +1,4 @@
-/*
+﻿/*
 ===========================================================================
 Copyright (C) 1999-2005 Id Software, Inc.
 
@@ -127,16 +127,26 @@ cvar_t* cl_auth;
 cvar_t* authc;
 cvar_t* authl;
 
+cvar_t* cl_auth_engine;
+cvar_t* cl_auth;
+cvar_t* authc;
+cvar_t* authl;
+
 cvar_t* cl_masterServers[MAX_MASTER_SERVERS];
 
 clientActive_t		cl;
 clientConnection_t	clc;
 clientStatic_t		cls;
 vm_t* cgvm;
+qboolean allowautodl;
 
 char				cl_reconnectArgs[MAX_OSPATH];
 char				cl_oldGame[MAX_QPATH];
 qboolean			cl_oldGameSet;
+
+static qboolean cl_musicMutedForTask = qfalse;
+
+
 
 // Structure containing functions exported from refresh DLL
 refexport_t	re;
@@ -145,6 +155,7 @@ static void* rendererLib = NULL;
 #endif
 
 ping_t	cl_pinglist[MAX_PINGREQUESTS];
+static qboolean cl_startDlPending = qfalse;
 
 typedef struct serverStatus_s
 {
@@ -169,6 +180,33 @@ void CL_CheckForResend(void);
 void CL_ShowIP_f(void);
 void CL_ServerStatus_f(void);
 void CL_ServerStatusResponse(netadr_t from, msg_t* msg);
+
+/*
+========================
+CL_MuteMenuMusic
+
+Temporarily mute music during download so it's not choppy
+========================
+*/
+
+static void CL_MuteMenuMusic(qboolean mute)
+{
+	if (mute) {
+		if (!cl_musicMutedForTask) {
+			S_StopBackgroundTrack();   /* stops menu loop instantly */
+			S_ClearSoundBuffer();      /* zero out queued audio */
+			S_StopAllSounds();         /* fallback if ClearSoundBuffer not exposed */
+		}
+	}
+	else {
+		if (cl_musicMutedForTask) {
+			S_StartBackgroundTrack("music/menu.wav", "music/menu.wav");
+		}
+	}
+
+	S_Update();
+}
+
 
 /*
 ===============
@@ -1394,7 +1432,16 @@ This is also called on Com_Error and Com_Quit, so it shouldn't cause any errors
 =====================
 */
 void CL_Disconnect(qboolean showMainMenu) {
+
+	CL_MuteMenuMusic(qfalse);
+
 	if (!com_cl_running || !com_cl_running->integer) {
+		return;
+	}
+
+	// Do not allow UI to nuke state while the download prompt is active
+	if (clc.dlquerying) {
+		Com_Printf("CL_Disconnect ignored during download prompt\n");
 		return;
 	}
 
@@ -2106,7 +2153,7 @@ Called when all downloading has been completed
 =================
 */
 void CL_DownloadsComplete(void) {
-
+	CL_MuteMenuMusic(qfalse);
 #ifdef USE_HTTP
 	// if we downloaded with HTTP
 	if (clc.httpUsed) {
@@ -2201,141 +2248,344 @@ static void CL_BeginDownload(const char* remoteName) {
 	CL_AddReliableCommand(va("download %s", remoteName), qfalse);
 }
 
+/* Normalize sv_dlURL to a full URL. Adds http:// if scheme missing. */
+static qboolean CL_NormalizeBaseURL(const char* in, char* out, size_t outsz)
+{
+	const char* p;
+	size_t len;
+
+	if (!in) { out[0] = 0; return qfalse; }
+
+	/* trim leading/trailing whitespace */
+	for (p = in; *p == ' ' || *p == '\t' || *p == '\r' || *p == '\n'; ++p) {}
+	len = strlen(p);
+	while (len && (p[len - 1] == ' ' || p[len - 1] == '\t' || p[len - 1] == '\r' || p[len - 1] == '\n')) len--;
+	if (!len) { out[0] = 0; return qfalse; }
+
+	/* keep existing scheme, accept protocol-relative, or prefix http:// */
+	if (!Q_strncmp(p, "http://", 7) || !Q_strncmp(p, "https://", 8)) {
+		Q_strncpyz(out, p, outsz);
+	}
+	else if (!Q_strncmp(p, "//", 2)) {
+		Com_sprintf(out, outsz, "http:%.*s", (int)len, p);
+	}
+	else {
+		Com_sprintf(out, outsz, "http://%.*s", (int)len, p);
+	}
+	return qtrue;
+}
+
 #ifdef USE_HTTP
 /*
 =================
 CL_BeginHttpDownload
 =================
 */
-static void CL_BeginHttpDownload(const char* remoteURL) {
-	if (Q_strncmp(remoteURL, "http://", strlen("http://")) != 0 &&
-		Q_strncmp(remoteURL, "https://", strlen("https://")) != 0) {
-		Com_Error(ERR_DROP, "Download Error: %s is a malformed/"
-			"unsupported URL", remoteURL);
+static void CL_BeginHttpDownload(const char* remoteURL)
+{
+	char fixedURL[MAX_STRING_CHARS * 2];
+	const char* url = remoteURL;
+
+	CL_MuteMenuMusic(qtrue);
+
+	/* normalize missing scheme */
+	if (Q_strncmp(remoteURL, "http://", 7) != 0 &&
+		Q_strncmp(remoteURL, "https://", 8) != 0) {
+		Com_sprintf(fixedURL, sizeof(fixedURL), "http://%s", remoteURL);
+		url = fixedURL;
 	}
 
-	Com_Printf("URL: %s\n", remoteURL);
+	Com_Printf("URL: %s\n", url);
 
-	CL_HTTP_BeginDownload(remoteURL);
-	Q_strncpyz(clc.downloadURL, remoteURL, sizeof(clc.downloadURL));
+	CL_HTTP_BeginDownload(url);
+	Q_strncpyz(clc.downloadURL, url, sizeof(clc.downloadURL));
 
 	clc.download = FS_BaseDir_FOpenFileWrite(clc.downloadTempName);
 	if (!clc.download) {
-		Com_Error(ERR_DROP, "CL_BeginHTTPDownload: failed to open "
-			"%s for writing", clc.downloadTempName);
+		Com_Error(ERR_DROP, "CL_BeginHTTPDownload: failed to open %s for writing",
+			clc.downloadTempName);
 	}
 
-	if (!(clc.sv_allowDownload & DLF_NO_DISCONNECT) &&
-		!clc.disconnectedForHttpDownload) {
-
+	if (!(clc.sv_allowDownload & DLF_NO_DISCONNECT) && !clc.disconnectedForHttpDownload) {
 		CL_AddReliableCommand("disconnect", qtrue);
-		CL_WritePacket();
-		CL_WritePacket();
-		CL_WritePacket();
+		CL_WritePacket(); CL_WritePacket(); CL_WritePacket();
 		clc.disconnectedForHttpDownload = qtrue;
 	}
-
 	clc.httpUsed = qtrue;
 }
+
 #endif /* USE_HTTP */
 
 /*
 =================
-CL_NextDownload
+CL_PromptDownload
 
-A download completed or failed
+Prompt the user for downloading
 =================
 */
+
+static void CL_PromptDownload(void)
+{
+	char* errorMessage;
+
+#define KEY(key) S_COLOR_YELLOW key S_COLOR_WHITE
+#define MAP_NAME S_COLOR_GREEN "%s" S_COLOR_WHITE ".\n\n"
+
+	if (!CL_HTTP_Init()) {
+		Com_Error(ERR_DROP,
+			"To play on this server, you need the map:\n\n"
+
+			MAP_NAME
+
+			S_COLOR_RED "The cURL library could not be loaded. Autodownload is not possible.\n\n" S_COLOR_WHITE
+
+			"Fix your cURL installation or try to get the map at https://urbanterror.info\n", cl.mapname);
+
+		return;
+	}
+	else 	if (!*clc.sv_dlURL) {
+		Q_strncpyz(clc.sv_dlURL, "https://urbanterror.info", sizeof(clc.sv_dlURL));
+
+		errorMessage = va(
+			"To play on this server, you need the map:\n\n"
+
+			MAP_NAME
+
+			"The server has no download URL set.\n"
+			"If you want to try to download from the official urbanterror repository, "
+			"press " KEY("Enter") " or " KEY("Left click") "\n\n"
+
+			"To cancel and disconnect, press " KEY("ESC") ".", cl.mapname);
+	}
+	else {
+		errorMessage = va(
+			"To play on this server, you need the map:\n\n"
+
+			MAP_NAME
+
+			"If you trust data from this server and want to try to automatically download the map, "
+			"press " KEY("Enter") " or " KEY("Left click") ".\n\n"
+
+			"To cancel and disconnect, press " KEY("ESC") ".", cl.mapname);
+	}
+
+	clc.dlquerying = qtrue;
+	Com_DPrintf("Prompting user to download map: %s\n", cl.mapname);
+	Cvar_Set("com_errorMessage", errorMessage);
+	if (uivm) {
+		VM_Call(uivm, UI_SET_ACTIVE_MENU, UIMENU_MAIN);
+	}
+
+
+#undef KEY
+#undef MAP_NAME
+}
+
+
+/*
+=================
+CL_FirstDownload
+
+First Download
+=================
+*/
+void CL_FirstDownload(void) {
+	char* s, * name;
+
+
+	// Remove everything that isn't the current map in the download list
+	while (*clc.downloadList) {
+		qboolean keep = qfalse;
+
+		s = clc.downloadList;
+		if (*s == '@')
+			s++;
+
+		name = s;
+
+		if ((s = strchr(s, '@')) == NULL) {
+			*clc.downloadList = 0;
+			break;
+		}
+
+		*s = 0;
+
+		if (!Q_stricmp(COM_SkipPath(name), va("%s.pk3", cl.mapname))) {
+			keep = qtrue;
+		}
+
+		*s++ = '@';
+
+		name = s;
+
+		if ((s = strchr(s, '@')) == NULL) {
+			s = name + strlen(name);
+		}
+
+		if (keep) {
+			*s = 0;
+			break;
+		}
+		else {
+			memmove(clc.downloadList, s, strlen(s) + 1);
+		}
+	}
+
+	Com_DPrintf("Rewritten download list: %s\n", clc.downloadList);
+
+	if (*clc.downloadList) {
+		CL_PromptDownload();
+	}
+	else {
+		CL_DownloadsComplete();
+	}
+}
+
 void CL_NextDownload(void)
 {
 	char* s;
 	char* remoteName, * localName;
-	qboolean usedHTTP = qfalse;
+	qboolean queuedHTTP = qfalse;
 
-	// A download has finished, check whether this matches a referenced checksum
-	if (*clc.downloadName)
-	{
-		char* zippath = FS_BaseDir_BuildOSPath(Cvar_VariableString("fs_homepath"), clc.downloadName);
-
-		if (!FS_CompareZipChecksum(zippath))
-			Com_Error(ERR_DROP, "Incorrect checksum for file: %s", clc.downloadName);
+	/* finalize previous transfer
+	   skip checksum if HTTP never moved bytes (prevents 0/0 hang + drop) */
+	if (*clc.downloadName) {
+#ifdef USE_HTTP
+		if (clc.httpUsed && clc.downloadSize == 0 && clc.downloadCount == 0) {
+			Com_Printf("Dropping previous HTTP transfer: 0/0 bytes for \"%s\"\n", clc.downloadName);
+			*clc.downloadTempName = *clc.downloadName = 0;
+			Cvar_Set("cl_downloadName", "");
+		}
+		else
+#endif
+		{
+			char* zippath = FS_BaseDir_BuildOSPath(Cvar_VariableString("fs_homepath"), clc.downloadName);
+			if (!FS_CompareZipChecksum(zippath)) {
+				Com_Error(ERR_DROP, "Incorrect checksum for file: %s", clc.downloadName);
+			}
+			*clc.downloadTempName = *clc.downloadName = 0;
+			Cvar_Set("cl_downloadName", "");
+		}
 	}
 
-	*clc.downloadTempName = *clc.downloadName = 0;
-	Cvar_Set("cl_downloadName", "");
-
-	// We are looking to start a download here
-	if (*clc.downloadList) {
-		s = clc.downloadList;
-
-		// format is:
-		//  @remotename@localname@remotename@localname, etc.
-
-		if (*s == '@')
-			s++;
-		remoteName = s;
-
-		if ((s = strchr(s, '@')) == NULL) {
-			CL_DownloadsComplete();
-			return;
-		}
-
-		*s++ = 0;
-		localName = s;
-		if ((s = strchr(s, '@')) != NULL)
-			*s++ = 0;
-		else
-			s = localName + strlen(localName); // point at the nul byte
-#ifdef USE_HTTP
-		if (!(cl_allowDownload->integer & DLF_NO_REDIRECT)) {
-			if (clc.sv_allowDownload & DLF_NO_REDIRECT) {
-				Com_Printf("WARNING: server does not "
-					"allow download redirection "
-					"(sv_allowDownload is %d)\n",
-					clc.sv_allowDownload);
-			}
-			else if (!*clc.sv_dlURL) {
-				Com_Printf("WARNING: server allows "
-					"download redirection, but does not "
-					"have sv_dlURL set\n");
-			}
-			else if (CL_HTTP_Available()) {
-				CL_InitDownload(localName);
-				CL_BeginHttpDownload(va("%s/%s",
-					clc.sv_dlURL, remoteName));
-
-				usedHTTP = qtrue;
-			}
-		}
-		else if (!(clc.sv_allowDownload & DLF_NO_REDIRECT)) {
-			Com_Printf("WARNING: server allows download "
-				"redirection, but it disabled by client "
-				"configuration (cl_allowDownload is %d)\n",
-				cl_allowDownload->integer);
-		}
-#endif /* USE_HTTP */
-		if (!usedHTTP) {
-			if ((cl_allowDownload->integer & DLF_NO_UDP)) {
-				Com_Error(ERR_DROP, "UDP Downloads are "
-					"disabled on your client. "
-					"(cl_allowDownload is %d)",
-					cl_allowDownload->integer);
-				return;
-			}
-			else {
-				CL_InitDownload(localName);
-				CL_BeginDownload(remoteName);
-			}
-		}
-		clc.downloadRestart = qtrue;
-
-		// move over the rest
-		memmove(clc.downloadList, s, strlen(s) + 1);
-
+	if (!*clc.downloadList) {
+		CL_DownloadsComplete();
 		return;
 	}
 
-	CL_DownloadsComplete();
+	/* parse one @remote@local entry, tolerate missing @local */
+	s = clc.downloadList;
+	if (*s == '@') s++;
+	remoteName = s;
+
+	if ((s = strchr(s, '@')) == NULL) {
+		localName = COM_SkipPath(remoteName);
+		s = remoteName + strlen(remoteName);
+	}
+	else {
+		*s++ = 0; /* end remoteName */
+		localName = s;
+		if ((s = strchr(s, '@')) != NULL) {
+			*s++ = 0; /* end localName */
+		}
+		else {
+			s = localName + strlen(localName);
+		}
+	}
+
+	/* drop empty or unsafe remote names */
+	if (!remoteName || !*remoteName) {
+		Com_Printf("Skipping empty download entry\n");
+		memmove(clc.downloadList, s, strlen(s) + 1);
+		CL_NextDownload();
+		return;
+	}
+	if (strstr(remoteName, "..")) {
+		Com_Printf("Dropping \"%s\": path contains \"..\"\n", remoteName);
+		memmove(clc.downloadList, s, strlen(s) + 1);
+		CL_NextDownload();
+		return;
+	}
+
+#ifdef USE_HTTP
+	if (cl_allowDownload->integer & DLF_NO_REDIRECT) {
+		Com_Printf("Dropping \"%s\": client disabled HTTP (cl_allowDownload=%d)\n",
+			remoteName, cl_allowDownload->integer);
+		memmove(clc.downloadList, s, strlen(s) + 1);
+		CL_NextDownload();
+		return;
+	}
+	if (clc.sv_allowDownload & DLF_NO_REDIRECT) {
+		Com_Printf("Dropping \"%s\": server disallows HTTP (sv_allowDownload=%d)\n",
+			remoteName, clc.sv_allowDownload);
+		memmove(clc.downloadList, s, strlen(s) + 1);
+		CL_NextDownload();
+		return;
+	}
+	if (!CL_HTTP_Available()) {
+		Com_Printf("Dropping \"%s\": cURL unavailable\n", remoteName);
+		memmove(clc.downloadList, s, strlen(s) + 1);
+		CL_NextDownload();
+		return;
+	}
+
+	/* build normalized base URL and final URL */
+	{
+		char baseURL[MAX_STRING_CHARS];
+		char url[MAX_STRING_CHARS * 2];
+		char remoteBuf[MAX_OSPATH];
+		const char* path;
+		size_t blen;
+		char* p;
+
+		/* if remoteName is already a full URL, use it */
+		Q_strncpyz(remoteBuf, remoteName, sizeof(remoteBuf));
+		for (p = remoteBuf; *p; ++p) if (*p == '\\') *p = '/';
+		if (!Q_strncmp(remoteBuf, "http://", 7) || !Q_strncmp(remoteBuf, "https://", 8)) {
+			Q_strncpyz(url, remoteBuf, sizeof(url));
+		}
+		else {
+			if (!CL_NormalizeBaseURL(clc.sv_dlURL, baseURL, sizeof(baseURL)) || !*baseURL) {
+				Com_Printf("Dropping \"%s\": sv_dlURL empty or invalid\n", remoteName);
+				memmove(clc.downloadList, s, strlen(s) + 1);
+				CL_NextDownload();
+				return;
+			}
+
+			/* rtrim single trailing slash to simplify join */
+			blen = strlen(baseURL);
+			while (blen > 0 && (baseURL[blen - 1] == ' ' || baseURL[blen - 1] == '\t')) baseURL[--blen] = '\0';
+
+			path = remoteBuf;
+			while (*path == '/') path++; /* strip leading slashes */
+
+			Com_sprintf(url, sizeof(url), "%s%s%s",
+				baseURL, (blen && baseURL[blen - 1] == '/') ? "" : "/", path);
+		}
+
+		/* sanity: no spaces, valid scheme */
+		if (!(!Q_strncmp(url, "http://", 7) || !Q_strncmp(url, "https://", 8)) || strchr(url, ' ')) {
+			Com_Printf("Dropping \"%s\": malformed URL \"%s\"\n", remoteName, url);
+			memmove(clc.downloadList, s, strlen(s) + 1);
+			CL_NextDownload();
+			return;
+		}
+
+		/* queue HTTP */
+		CL_InitDownload((localName && *localName) ? localName : COM_SkipPath(remoteName));
+		CL_BeginHttpDownload(url);
+		Q_strncpyz(clc.downloadURL, url, sizeof(clc.downloadURL));
+		clc.httpUsed = qtrue;
+		queuedHTTP = qtrue;
+	}
+#else
+	Com_Printf("Dropping \"%s\": client built without HTTP support\n", remoteName);
+#endif /* USE_HTTP */
+
+	/* advance list; restart only if a transfer was queued */
+	memmove(clc.downloadList, s, strlen(s) + 1);
+	if (queuedHTTP) clc.downloadRestart = qtrue;
+	else CL_NextDownload();
 }
 
 /*
@@ -2373,7 +2623,7 @@ void CL_InitDownloads(void) {
 			*clc.downloadTempName = *clc.downloadName = 0;
 			Cvar_Set("cl_downloadName", "");
 
-			CL_NextDownload();
+			CL_FirstDownload();
 			return;
 		}
 
@@ -2381,6 +2631,57 @@ void CL_InitDownloads(void) {
 
 	CL_DownloadsComplete();
 }
+
+static void CL_CloseDownloadPrompt(void)
+{
+	clc.dlquerying = qfalse;
+	Cvar_Set("com_errorMessage", "");
+	if (uivm) {
+		VM_Call(uivm, UI_SET_ACTIVE_MENU, UIMENU_NONE);
+	}
+}
+
+/*
+=================
+CL_DownloadMenu
+
+The user replied to the download prompt
+=================
+*/
+void CL_DownloadMenu(int key)
+{
+
+	CL_MuteMenuMusic(qtrue);
+	if (!clc.dlquerying)
+		return;
+
+	switch (key)
+	{
+	case K_ESCAPE:
+		CL_MuteMenuMusic(qfalse);
+		CL_CloseDownloadPrompt();
+		CL_Disconnect(qtrue);
+		return;
+
+	case K_ENTER:
+	case K_KP_ENTER:
+	case K_MOUSE1:
+		/* Close the UI BEFORE starting downloads to avoid UI-triggered disconnects */
+		CL_CloseDownloadPrompt();
+		// Do the heavy lifting next frame
+		cl_startDlPending = qtrue;
+		return;
+
+	case K_TAB:
+		CL_CloseDownloadPrompt();
+		CL_DownloadsComplete();
+		return;
+
+	default:
+		return;
+	}
+}
+
 
 /*
 =================
@@ -3128,6 +3429,11 @@ void CL_Frame(int msec) {
 
 	// update audio
 	S_Update();
+
+	if (cl_startDlPending) {
+		cl_startDlPending = qfalse;
+		CL_NextDownload();
+	}
 
 #ifdef USE_VOIP
 	CL_CaptureVoip();

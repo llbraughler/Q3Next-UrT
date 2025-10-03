@@ -464,6 +464,10 @@ static void CL_ParseServerInfo(void)
 	Q_strncpyz(clc.sv_dlURL,
 		Info_ValueForKey(serverInfo, "sv_dlURL"),
 		sizeof(clc.sv_dlURL));
+	Q_strncpyz(cl.mapname,
+		Info_ValueForKey(serverInfo, "mapname"),
+		sizeof(cl.mapname));
+
 }
 
 /*
@@ -935,7 +939,7 @@ void CL_ParseServerMessage(msg_t* msg) {
 			CL_ParseSnapshot(msg);
 			break;
 		case svc_download:
-			CL_ParseDownload(msg);
+			//Unsupported for UrT. We use http downloads instead.
 			break;
 		case svc_voipSpeex:
 #ifdef USE_VOIP
