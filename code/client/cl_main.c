@@ -3590,7 +3590,7 @@ void CL_InitRef(void) {
 	refimport_t	ri;
 	refexport_t* ret;
 #ifdef USE_RENDERER_DLOPEN
-	GetRefAPI_t		GetRefAPI;
+	GetRefAPI_t		pGetRefAPI = NULL;
 	char			dllName[MAX_OSPATH];
 #endif
 
@@ -3616,8 +3616,8 @@ void CL_InitRef(void) {
 		Com_Error(ERR_FATAL, "Failed to load renderer");
 	}
 
-	GetRefAPI = Sys_LoadFunction(rendererLib, "GetRefAPI");
-	if (!GetRefAPI)
+	pGetRefAPI = (GetRefAPI_t)Sys_LoadFunction(rendererLib, "GetRefAPI");
+	if (!pGetRefAPI)
 	{
 		Com_Error(ERR_FATAL, "Can't load symbol GetRefAPI: '%s'", Sys_LibraryError());
 	}
@@ -3677,7 +3677,12 @@ void CL_InitRef(void) {
 	ri.Sys_GLimpInit = Sys_GLimpInit;
 	ri.Sys_LowPhysicalMemory = Sys_LowPhysicalMemory;
 
-	ret = GetRefAPI(REF_API_VERSION, &ri);
+	#ifdef USE_RENDERER_DLOPEN
+		ret = pGetRefAPI(REF_API_VERSION, &ri);
+	#else
+		extern refexport_t * GetRefAPI(int, refimport_t*);
+		ret = GetRefAPI(REF_API_VERSION, &ri);
+	#endif
 
 #if defined __USEA3D && defined __A3D_GEOM
 	hA3Dg_ExportRenderGeom(ret);

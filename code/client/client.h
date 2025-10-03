@@ -615,7 +615,7 @@ qboolean CL_GameCommand(void);
 void CL_CGameRendering(stereoFrame_t stereo);
 void CL_SetCGameTime(void);
 void CL_FirstSnapshot(void);
-void CL_ShaderStateChanged(void);
+//void CL_ShaderStateChanged(void);
 
 //
 // cl_ui.c
