@@ -445,6 +445,11 @@ extern	cvar_t* cl_voipGainDuringCapture;
 extern	cvar_t* cl_voipCaptureMult;
 extern	cvar_t* cl_voipShowMeter;
 extern	cvar_t* cl_voip;
+extern  cvar_t* cl_auth_engine;
+extern  cvar_t* cl_auth;
+extern  cvar_t* authc;
+extern  cvar_t* authl; // Auth Login
+
 
 // 20ms at 48k
 #define VOIP_MAX_FRAME_SAMPLES		( 20 * 48 )
