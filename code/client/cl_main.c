@@ -196,12 +196,13 @@ static void CL_MuteMenuMusic(qboolean mute)
 			S_StopBackgroundTrack();   /* stops menu loop instantly */
 			S_ClearSoundBuffer();      /* zero out queued audio */
 			S_StopAllSounds();         /* fallback if ClearSoundBuffer not exposed */
+			cl_musicMutedForTask = qtrue;
 		}
-	}
-	else {
-		if (cl_musicMutedForTask) {
-			S_StartBackgroundTrack("music/menu.wav", "music/menu.wav");
-		}
+	} else {
+			if (cl_musicMutedForTask) {
+				S_StartBackgroundTrack("music/menu.wav", "music/menu.wav");
+				cl_musicMutedForTask = qfalse;
+			}
 	}
 
 	S_Update();

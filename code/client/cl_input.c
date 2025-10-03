@@ -181,7 +181,9 @@ float CL_KeyState( kbutton_t *key ) {
 	}
 #endif
 
-	val = (float)msec / frame_msec;
+	const int __denom = frame_msec ? frame_msec : 1;
+	val = (float)msec / __denom;
+
 	if ( val < 0 ) {
 		val = 0;
 	}
@@ -463,7 +465,7 @@ void CL_MouseMove(usercmd_t *cmd)
 			float accelSensitivity;
 			float rate;
 			
-			rate = sqrt(mx * mx + my * my) / (float) frame_msec;
+			{ const int __denom = frame_msec ? frame_msec : 1; rate = sqrtf(mx * mx + my * my) / (float)__denom; }
 
 			accelSensitivity = cl_sensitivity->value + rate * cl_mouseAccel->value;
 			mx *= accelSensitivity;
