@@ -646,6 +646,7 @@ void Con_DrawSolidConsole( float frac ) {
 //	qhandle_t		conShader;
 	int				currentColor;
 	vec4_t			colorBG, colorFG;
+	const vec_t inv255 = (vec_t)(1.0 / 255.0);
 
 	lines = cls.glconfig.vidHeight * frac;
 	if (lines <= 0)
@@ -667,16 +668,16 @@ void Con_DrawSolidConsole( float frac ) {
 		SCR_DrawPic( 0, 0, SCREEN_WIDTH, y, cls.consoleShader );
 	}
 
-	colorBG[0] = 45.0 / 255.0;
-	colorBG[1] = 72.0 / 255.0;
-	colorBG[2] = 92.0 / 255.0;
-	colorBG[3] = 1;
+	colorBG[0] = (vec_t)45.0 * inv255;
+	colorBG[1] = (vec_t)72.0 * inv255;
+	colorBG[2] = (vec_t)92.0 * inv255;
+	colorBG[3] = (vec_t)1.0;
 	SCR_FillRect(0, y, SCREEN_WIDTH, 2, colorBG);
 
-	colorFG[0] = 140.0 / 255.0;
-	colorFG[1] = 170.0 / 255.0;
-	colorFG[2] = 183.0 / 255.0;
-	colorFG[3] = 1;
+	colorFG[0] = (vec_t)140.0 * inv255;
+	colorFG[1] = (vec_t)170.0 * inv255;
+	colorFG[2] = (vec_t)183.0 * inv255;
+	colorFG[3] = (vec_t)1.0;
 
 	
 	re.SetColor(colorFG);
