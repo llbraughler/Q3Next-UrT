@@ -145,24 +145,24 @@ static void DrawNormals(shaderCommands_t* input) {
 
 	const int vertexCount = input->numVertexes;
 	if (vertexCount <= 0 || !input->xyz || !input->normal) return;
-	if (!input->shader || input->shader->isSky) return;                 // do not draw over sky/clouds
-	if (input->shader->numDeforms > 0) return;                          // skip waves/flows
+	if (!input->shader || input->shader->isSky) return;   // do not draw over sky/clouds
+	if (input->shader->numDeforms > 0) return;  // skip vertex-deformed surfaces
 
-	// Skip animated entities that are interpolating; normals will appear to "swim".
+	// Skip animated entities that are interpolating; otherwise normals will appear to "swim".
 	if (backEnd.currentEntity != &tr.worldEntity) {
 		const trRefEntity_t* refEnt = backEnd.currentEntity;
 		if (refEnt && refEnt->e.backlerp > 0) return;
 	}
 
-	const float        lineLength = 6.0f;
+	const float       lineLength = 6.0f;
 
-	// xyz is float4 (x,y,z,1)
+	// xyz is vec4_t (x,y,z,1)
 	const float* positionsXYZW = (const float*)input->xyz;
 	const int16_t* packedNormals = (const int16_t*)input->normal;
 	const float* floatNormals = (const float*)input->normal;
 
 	const vao_t* boundVao = glState.currentVao;
-	qboolean           usePacked = qfalse;
+	qboolean          usePacked = qfalse;
 
 	if (boundVao) {
 		const vaoAttrib_t* a = &boundVao->attribs[ATTR_INDEX_NORMAL];
@@ -276,10 +276,6 @@ static void DrawNormals(shaderCommands_t* input) {
 
 	ri.Hunk_FreeTempMemory(lineVertices);
 }
-
-
-
-
 
 /*
 ==============
