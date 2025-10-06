@@ -836,16 +836,16 @@ void RB_DrawSun(float scale, shader_t* shader) {
 		return;
 	}
 
-	//qglLoadMatrixf( backEnd.viewParms.world.modelMatrix );
-	//qglTranslatef (backEnd.viewParms.or.origin[0], backEnd.viewParms.or.origin[1], backEnd.viewParms.or.origin[2]);
-	{
-		// FIXME: this could be a lot cleaner
-		mat4_t translation, modelview;
+	ri.Printf(PRINT_DEVELOPER, "Calling RB_DrawSun\n");
 
-		Mat4Translation(backEnd.viewParms. or .origin, translation);
-		Mat4Multiply(backEnd.viewParms.world.modelMatrix, translation, modelview);
-		GL_SetModelviewMatrix(modelview);
-	}
+	// Save/restore modelview to avoid leaking the camera-origin translation.
+	// This removes the FIXME and prevents state corruption in later draws.
+	
+	mat4_t oldModelView, translation, modelview;
+	Mat4Copy(glState.modelview, oldModelView);
+	Mat4Translation(backEnd.viewParms. or .origin, translation);
+	Mat4Multiply(backEnd.viewParms.world.modelMatrix, translation, modelview);
+	GL_SetModelviewMatrix(modelview);
 
 	dist = backEnd.viewParms.zFar / 1.75;		// div sqrt(3)
 	size = dist * scale;
@@ -866,7 +866,8 @@ void RB_DrawSun(float scale, shader_t* shader) {
 
 	RB_EndSurface();
 
-	// back to normal depth range
+    // Restore modelview then depth range.
+	GL_SetModelviewMatrix(oldModelView);
 	qglDepthRange(0.0, 1.0);
 }
 
